@@ -18,6 +18,10 @@ function NativeTabLayout() {
         <Icon sf={{ default: "wand.and.stars", selected: "wand.and.stars" }} />
         <Label>Doctor It Up</Label>
       </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="chef">
+        <Icon sf={{ default: "flame", selected: "flame.fill" }} />
+        <Label>AI Chef</Label>
+      </NativeTabs.Trigger>
       <NativeTabs.Trigger name="shopping">
         <Icon sf={{ default: "cart", selected: "cart.fill" }} />
         <Label>Shopping</Label>
@@ -69,6 +73,15 @@ function ClassicTabLayout() {
           title: "Doctor It Up",
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="sparkles-outline" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="chef"
+        options={{
+          title: "AI Chef",
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="flame-outline" size={size} color={color} />
           ),
         }}
       />

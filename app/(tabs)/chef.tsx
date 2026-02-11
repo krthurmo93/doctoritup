@@ -29,19 +29,32 @@ interface Ingredient {
   notes: string | null;
 }
 
-interface Upgrade {
+interface BaseRecipe {
+  title: string;
+  servings: number;
+  prep_minutes: number;
+  cook_minutes: number;
+  ingredients: Ingredient[];
+  steps: string[];
+  shopping_list: string[];
+  safety_note: string | null;
+}
+
+interface DoctoredRecipe {
   title: string;
   tagline: string;
   why: string;
-  add_ingredients: Ingredient[];
+  servings: number;
+  prep_minutes: number;
+  cook_minutes: number;
+  ingredients: Ingredient[];
   steps: string[];
   shopping_list: string[];
 }
 
-interface DoctorResult {
-  base_product: string;
-  base_description: string;
-  upgrades: Upgrade[];
+interface RecipeResult {
+  base: BaseRecipe;
+  doctored: DoctoredRecipe[];
 }
 
 function formatIngredient(ing: Ingredient): string {
@@ -51,6 +64,70 @@ function formatIngredient(ing: Ingredient): string {
   s += (s ? " " : "") + ing.item;
   if (ing.notes) s += ` (${ing.notes})`;
   return s;
+}
+
+function MetaChips({ recipe }: { recipe: BaseRecipe | DoctoredRecipe }) {
+  return (
+    <View style={styles.metaRow}>
+      <View style={styles.metaChip}>
+        <Ionicons name="people-outline" size={13} color={C.textSecondary} />
+        <Text style={styles.metaText}>{recipe.servings} servings</Text>
+      </View>
+      <View style={styles.metaChip}>
+        <Ionicons name="time-outline" size={13} color={C.textSecondary} />
+        <Text style={styles.metaText}>
+          {recipe.prep_minutes}m prep + {recipe.cook_minutes}m cook
+        </Text>
+      </View>
+    </View>
+  );
+}
+
+function IngredientsList({ ingredients, accentColor }: { ingredients: Ingredient[]; accentColor?: string }) {
+  const color = accentColor || C.textSecondary;
+  return (
+    <View style={styles.listBlock}>
+      <View style={styles.listBlockHeader}>
+        <Feather name="shopping-bag" size={14} color={color} />
+        <Text style={[styles.listBlockTitle, { color }]}>Ingredients</Text>
+      </View>
+      {ingredients.map((ing, i) => (
+        <View key={i} style={styles.listItem}>
+          <View style={[styles.bulletDot, accentColor ? { backgroundColor: accentColor } : undefined]} />
+          <Text style={styles.listItemText}>{formatIngredient(ing)}</Text>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+function StepsList({ steps, accentColor }: { steps: string[]; accentColor?: string }) {
+  const color = accentColor || C.textSecondary;
+  return (
+    <View style={styles.listBlock}>
+      <View style={styles.listBlockHeader}>
+        <Feather name="list" size={14} color={color} />
+        <Text style={[styles.listBlockTitle, { color }]}>Steps</Text>
+      </View>
+      {steps.map((step, i) => (
+        <View key={i} style={styles.stepItem}>
+          <View
+            style={[
+              styles.stepNum,
+              accentColor
+                ? { backgroundColor: accentColor + "18", borderColor: accentColor + "40" }
+                : undefined,
+            ]}
+          >
+            <Text style={[styles.stepNumText, accentColor ? { color: accentColor } : undefined]}>
+              {i + 1}
+            </Text>
+          </View>
+          <Text style={styles.listItemText}>{step}</Text>
+        </View>
+      ))}
+    </View>
+  );
 }
 
 function AddToShoppingBtn({ items, color }: { items: string[]; color?: string }) {
@@ -72,28 +149,28 @@ function AddToShoppingBtn({ items, color }: { items: string[]; color?: string })
     >
       <Ionicons name="cart-outline" size={16} color={btnColor} />
       <Text style={[styles.addShoppingText, { color: btnColor }]}>
-        Add Extras to Shopping List
+        Add to Shopping List
       </Text>
     </Pressable>
   );
 }
 
-function UpgradeCard({
-  upgrade,
+function DoctoredCard({
+  recipe,
   index,
   isExpanded,
   onPress,
 }: {
-  upgrade: Upgrade;
+  recipe: DoctoredRecipe;
   index: number;
   isExpanded: boolean;
   onPress: () => void;
 }) {
-  const cardColors = ["#E8945A", "#7B68EE", "#4FC1A6"];
+  const cardColors = ["#7B68EE", "#E85D75", "#4FC1A6"];
   const color = cardColors[index % cardColors.length];
-  const shoppingItems = upgrade.shopping_list?.length
-    ? upgrade.shopping_list
-    : upgrade.add_ingredients.map((i) => formatIngredient(i));
+  const shoppingItems = recipe.shopping_list?.length
+    ? recipe.shopping_list
+    : recipe.ingredients.map((i) => formatIngredient(i));
 
   return (
     <Animated.View entering={FadeInDown.duration(300).delay(index * 80)}>
@@ -105,18 +182,18 @@ function UpgradeCard({
           onPress();
         }}
         style={({ pressed }) => [
-          styles.upgradeCard,
+          styles.doctoredCard,
           { borderColor: color + "30" },
           isExpanded && { borderColor: color + "60", backgroundColor: color + "08" },
           pressed && { opacity: 0.9 },
         ]}
       >
-        <View style={styles.upgradeCardHeader}>
-          <View style={[styles.upgradeDot, { backgroundColor: color }]} />
+        <View style={styles.doctoredCardHeader}>
+          <View style={[styles.doctoredDot, { backgroundColor: color }]} />
           <View style={{ flex: 1 }}>
-            <Text style={[styles.upgradeTitle, { color }]}>{upgrade.title}</Text>
+            <Text style={[styles.doctoredTitle, { color }]}>{recipe.title}</Text>
             <View style={[styles.taglineBadge, { backgroundColor: color + "18" }]}>
-              <Text style={[styles.taglineText, { color }]}>{upgrade.tagline}</Text>
+              <Text style={[styles.taglineText, { color }]}>{recipe.tagline}</Text>
             </View>
           </View>
           <Ionicons
@@ -126,45 +203,14 @@ function UpgradeCard({
           />
         </View>
 
-        <Text style={styles.whyText}>{upgrade.why}</Text>
+        <Text style={styles.whyText}>{recipe.why}</Text>
 
         {isExpanded && (
           <Animated.View entering={FadeIn.duration(250)}>
             <View style={[styles.expandedDivider, { backgroundColor: color + "20" }]} />
-
-            <View style={styles.listBlock}>
-              <View style={styles.listBlockHeader}>
-                <Ionicons name="add-circle-outline" size={14} color={color} />
-                <Text style={[styles.listBlockTitle, { color }]}>What to Add</Text>
-              </View>
-              {upgrade.add_ingredients.map((ing, i) => (
-                <View key={i} style={styles.listItem}>
-                  <View style={[styles.bulletDot, { backgroundColor: color }]} />
-                  <Text style={styles.listItemText}>{formatIngredient(ing)}</Text>
-                </View>
-              ))}
-            </View>
-
-            <View style={styles.listBlock}>
-              <View style={styles.listBlockHeader}>
-                <Feather name="list" size={14} color={color} />
-                <Text style={[styles.listBlockTitle, { color }]}>Steps</Text>
-              </View>
-              {upgrade.steps.map((step, i) => (
-                <View key={i} style={styles.stepItem}>
-                  <View
-                    style={[
-                      styles.stepNum,
-                      { backgroundColor: color + "18", borderColor: color + "40" },
-                    ]}
-                  >
-                    <Text style={[styles.stepNumText, { color }]}>{i + 1}</Text>
-                  </View>
-                  <Text style={styles.listItemText}>{step}</Text>
-                </View>
-              ))}
-            </View>
-
+            <MetaChips recipe={recipe} />
+            <IngredientsList ingredients={recipe.ingredients} accentColor={color} />
+            <StepsList steps={recipe.steps} accentColor={color} />
             <AddToShoppingBtn items={shoppingItems} color={color} />
           </Animated.View>
         )}
@@ -174,19 +220,19 @@ function UpgradeCard({
 }
 
 const SUGGESTIONS = [
-  "Box cake mix",
-  "Instant ramen",
-  "Boxed mac & cheese",
-  "Frozen pizza",
-  "Canned soup",
-  "Brownie mix",
+  "Peach cobbler",
+  "Chicken alfredo",
+  "Beef tacos",
+  "Banana bread",
+  "Pad thai",
+  "Chocolate lava cake",
 ];
 
-export default function DoctorItUpScreen() {
+export default function ChefScreen() {
   const insets = useSafeAreaInsets();
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<DoctorResult | null>(null);
+  const [result, setResult] = useState<RecipeResult | null>(null);
   const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const scrollRef = useRef<ScrollView>(null);
@@ -194,7 +240,7 @@ export default function DoctorItUpScreen() {
   const webTopInset = Platform.OS === "web" ? 67 : 0;
   const webBottomInset = Platform.OS === "web" ? 34 : 0;
 
-  const generate = useCallback(
+  const generateRecipe = useCallback(
     async (query?: string) => {
       const msg = (query || input).trim();
       if (!msg || loading) return;
@@ -211,21 +257,21 @@ export default function DoctorItUpScreen() {
 
       try {
         const baseUrl = getApiUrl();
-        const url = new URL("/api/doctor-it-up", baseUrl);
+        const url = new URL("/api/recipe-chat", baseUrl);
         const res = await fetch(url.toString(), {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ message: msg }),
+          body: JSON.stringify({ message: msg, preferences: {} }),
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data?.error || "Generation failed");
 
-        setResult(data as DoctorResult);
+        setResult(data as RecipeResult);
 
         if (Platform.OS !== "web") {
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         }
-        setTimeout(() => scrollRef.current?.scrollTo({ y: 250, animated: true }), 400);
+        setTimeout(() => scrollRef.current?.scrollTo({ y: 300, animated: true }), 400);
       } catch (e: any) {
         setError(e.message || "Something went wrong. Try again.");
       } finally {
@@ -238,15 +284,21 @@ export default function DoctorItUpScreen() {
   const handleSuggestion = useCallback(
     (text: string) => {
       setInput(text);
-      generate(text);
+      generateRecipe(text);
     },
-    [generate]
+    [generateRecipe]
   );
+
+  const baseShoppingItems = result?.base
+    ? result.base.shopping_list?.length
+      ? result.base.shopping_list
+      : result.base.ingredients.map((i) => formatIngredient(i))
+    : [];
 
   return (
     <View style={styles.container}>
       <LinearGradient
-        colors={["#2a1f4a", "#15121f", C.background]}
+        colors={["#1a2f3a", "#12181f", C.background]}
         locations={[0, 0.35, 0.6]}
         style={StyleSheet.absoluteFill}
       />
@@ -270,37 +322,37 @@ export default function DoctorItUpScreen() {
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.header}>
-            <View style={styles.headerIcon}>
-              <MaterialCommunityIcons name="magic-staff" size={26} color={C.upgrade} />
+            <View style={[styles.headerIcon, { backgroundColor: C.accentDim }]}>
+              <MaterialCommunityIcons name="chef-hat" size={28} color={C.accent} />
             </View>
             <View>
-              <Text style={styles.headerTitle}>Doctor It Up</Text>
+              <Text style={styles.headerTitle}>AI Chef</Text>
               <Text style={styles.headerSubtitle}>
-                Upgrade what you already have
+                Tell me what to make, I'll give you options
               </Text>
             </View>
           </View>
 
           <View style={styles.inputCard}>
-            <Text style={styles.inputLabel}>What do you have?</Text>
+            <Text style={styles.inputLabel}>What do you want to cook?</Text>
             <View style={styles.inputRow}>
               <TextInput
                 value={input}
                 onChangeText={setInput}
-                placeholder="Box cake mix, instant ramen..."
+                placeholder="Peach cobbler, chicken alfredo..."
                 placeholderTextColor={C.textSecondary}
                 style={styles.textInput}
                 returnKeyType="send"
-                onSubmitEditing={() => generate()}
+                onSubmitEditing={() => generateRecipe()}
                 blurOnSubmit
                 editable={!loading}
               />
               <Pressable
-                onPress={() => generate()}
+                onPress={() => generateRecipe()}
                 disabled={loading || !input.trim()}
                 style={({ pressed }) => [
                   styles.sendBtn,
-                  { backgroundColor: C.upgrade },
+                  { backgroundColor: C.accent },
                   (!input.trim() || loading) && { opacity: 0.4 },
                   pressed && { opacity: 0.7 },
                 ]}
@@ -308,14 +360,14 @@ export default function DoctorItUpScreen() {
                 {loading ? (
                   <ActivityIndicator size="small" color="#fff" />
                 ) : (
-                  <MaterialCommunityIcons name="magic-staff" size={18} color="#fff" />
+                  <Ionicons name="sparkles" size={18} color="#fff" />
                 )}
               </Pressable>
             </View>
 
             {!result && !loading && (
               <View style={styles.suggestionsWrap}>
-                <Text style={styles.suggestLabel}>Popular items:</Text>
+                <Text style={styles.suggestLabel}>Try something:</Text>
                 <View style={styles.suggestions}>
                   {SUGGESTIONS.map((s) => (
                     <Pressable
@@ -323,10 +375,11 @@ export default function DoctorItUpScreen() {
                       onPress={() => handleSuggestion(s)}
                       style={({ pressed }) => [
                         styles.suggestionChip,
+                        { backgroundColor: C.accentLight, borderColor: "rgba(232,148,90,0.2)" },
                         pressed && { opacity: 0.7 },
                       ]}
                     >
-                      <Text style={styles.suggestionText}>{s}</Text>
+                      <Text style={[styles.suggestionText, { color: C.accent }]}>{s}</Text>
                     </Pressable>
                   ))}
                 </View>
@@ -336,9 +389,9 @@ export default function DoctorItUpScreen() {
 
           {loading && (
             <Animated.View entering={FadeIn.duration(300)} style={styles.loadingCard}>
-              <ActivityIndicator size="small" color={C.upgrade} />
+              <ActivityIndicator size="small" color={C.accent} />
               <Text style={styles.loadingText}>
-                Finding ways to upgrade your {input.trim() || "item"}...
+                Cooking up your recipe and 3 creative variations...
               </Text>
             </Animated.View>
           )}
@@ -352,13 +405,28 @@ export default function DoctorItUpScreen() {
 
           {result && (
             <>
-              <Animated.View entering={FadeInDown.duration(300)} style={styles.baseSection}>
-                <View style={styles.baseCard}>
-                  <View style={styles.baseCardHeader}>
-                    <Ionicons name="cube-outline" size={20} color={C.textSecondary} />
-                    <Text style={styles.baseProductName}>{result.base_product}</Text>
-                  </View>
-                  <Text style={styles.baseDescription}>{result.base_description}</Text>
+              <Animated.View entering={FadeInDown.duration(300)} style={styles.section}>
+                <View style={styles.sectionHeader}>
+                  <MaterialCommunityIcons name="food-variant" size={18} color={C.accent} />
+                  <Text style={[styles.sectionTitle, { color: C.accent }]}>
+                    Base Recipe
+                  </Text>
+                </View>
+
+                <View style={styles.baseRecipeCard}>
+                  <Text style={styles.baseRecipeTitle}>{result.base.title}</Text>
+                  <MetaChips recipe={result.base} />
+
+                  {result.base.safety_note && (
+                    <View style={styles.safetyBadge}>
+                      <Ionicons name="warning-outline" size={14} color="#FFB347" />
+                      <Text style={styles.safetyText}>{result.base.safety_note}</Text>
+                    </View>
+                  )}
+
+                  <IngredientsList ingredients={result.base.ingredients} />
+                  <StepsList steps={result.base.steps} />
+                  <AddToShoppingBtn items={baseShoppingItems} />
                 </View>
               </Animated.View>
 
@@ -367,22 +435,24 @@ export default function DoctorItUpScreen() {
                 style={styles.section}
               >
                 <View style={styles.sectionHeader}>
-                  <MaterialCommunityIcons name="auto-fix" size={18} color={C.upgrade} />
+                  <MaterialCommunityIcons name="magic-staff" size={18} color={C.upgrade} />
                   <Text style={[styles.sectionTitle, { color: C.upgrade }]}>
-                    3 Ways to Upgrade
+                    Alternative Versions
                   </Text>
                 </View>
-                <Text style={styles.upgradeSubtitle}>
-                  Tap any upgrade to see what to add and how
+                <Text style={styles.doctoredSubtitle}>
+                  3 different takes on this dish — tap to see full recipe
                 </Text>
 
-                {result.upgrades.map((u, i) => (
-                  <UpgradeCard
+                {result.doctored.map((d, i) => (
+                  <DoctoredCard
                     key={i}
-                    upgrade={u}
+                    recipe={d}
                     index={i}
                     isExpanded={expandedIndex === i}
-                    onPress={() => setExpandedIndex(expandedIndex === i ? null : i)}
+                    onPress={() =>
+                      setExpandedIndex(expandedIndex === i ? null : i)
+                    }
                   />
                 ))}
               </Animated.View>
@@ -392,16 +462,16 @@ export default function DoctorItUpScreen() {
           {!result && !loading && !error && (
             <View style={styles.emptyHero}>
               <MaterialCommunityIcons
-                name="package-variant"
+                name="silverware-fork-knife"
                 size={56}
                 color={C.textSecondary}
                 style={{ opacity: 0.4 }}
               />
               <Text style={styles.emptyTitle}>
-                Got a box mix or pre-made item?
+                Describe any dish and get a full recipe
               </Text>
               <Text style={styles.emptySubtitle}>
-                Tell us what you have and we'll show you 3 ways to make it taste way better
+                Plus 3 creative alternative versions with different techniques, ingredient swaps, and shortcuts
               </Text>
             </View>
           )}
@@ -549,34 +619,6 @@ const styles = StyleSheet.create({
     flex: 1,
     lineHeight: 20,
   },
-  baseSection: {
-    marginBottom: 20,
-  },
-  baseCard: {
-    backgroundColor: C.card,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: C.border,
-    padding: 16,
-  },
-  baseCardHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    marginBottom: 6,
-  },
-  baseProductName: {
-    fontSize: 18,
-    fontFamily: "Outfit_700Bold",
-    color: C.text,
-  },
-  baseDescription: {
-    fontSize: 14,
-    fontFamily: "Outfit_400Regular",
-    color: C.textSecondary,
-    lineHeight: 20,
-    marginLeft: 30,
-  },
   section: {
     marginBottom: 24,
   },
@@ -584,65 +626,59 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    marginBottom: 4,
+    marginBottom: 12,
   },
   sectionTitle: {
     fontSize: 17,
     fontFamily: "Outfit_700Bold",
   },
-  upgradeSubtitle: {
-    fontSize: 13,
-    fontFamily: "Outfit_400Regular",
-    color: C.textSecondary,
-    marginBottom: 14,
-    marginTop: 4,
-  },
-  upgradeCard: {
+  baseRecipeCard: {
     backgroundColor: C.card,
-    borderRadius: 16,
+    borderRadius: 18,
     borderWidth: 1,
     borderColor: C.border,
     padding: 16,
+  },
+  baseRecipeTitle: {
+    fontSize: 18,
+    fontFamily: "Outfit_700Bold",
+    color: C.text,
+    marginBottom: 10,
+  },
+  metaRow: {
+    flexDirection: "row",
+    gap: 12,
+    flexWrap: "wrap",
     marginBottom: 12,
   },
-  upgradeCardHeader: {
+  metaChip: {
     flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 12,
+    alignItems: "center",
+    gap: 4,
   },
-  upgradeDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    marginTop: 5,
-  },
-  upgradeTitle: {
-    fontSize: 16,
-    fontFamily: "Outfit_700Bold",
-    marginBottom: 6,
-  },
-  taglineBadge: {
-    alignSelf: "flex-start",
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-  },
-  taglineText: {
+  metaText: {
     fontSize: 12,
-    fontFamily: "Outfit_600SemiBold",
-  },
-  whyText: {
-    fontSize: 13,
     fontFamily: "Outfit_400Regular",
     color: C.textSecondary,
-    lineHeight: 19,
-    marginTop: 10,
   },
-  expandedDivider: {
-    height: 1,
-    marginVertical: 14,
+  safetyBadge: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+    backgroundColor: "rgba(255,179,71,0.1)",
+    borderRadius: 12,
+    padding: 10,
+    marginBottom: 12,
+  },
+  safetyText: {
+    fontSize: 12,
+    fontFamily: "Outfit_400Regular",
+    color: "#FFB347",
+    flex: 1,
+    lineHeight: 17,
   },
   listBlock: {
+    marginTop: 4,
     marginBottom: 12,
   },
   listBlockHeader: {
@@ -654,6 +690,7 @@ const styles = StyleSheet.create({
   listBlockTitle: {
     fontSize: 12,
     fontFamily: "Outfit_600SemiBold",
+    color: C.textSecondary,
     textTransform: "uppercase" as const,
     letterSpacing: 0.5,
   },
@@ -687,12 +724,16 @@ const styles = StyleSheet.create({
     width: 24,
     height: 24,
     borderRadius: 12,
+    backgroundColor: C.accentDim,
+    borderWidth: 1,
+    borderColor: "rgba(232,148,90,0.25)",
     alignItems: "center",
     justifyContent: "center",
   },
   stepNumText: {
     fontSize: 11,
     fontFamily: "Outfit_600SemiBold",
+    color: C.accent,
   },
   addShoppingBtn: {
     flexDirection: "row",
@@ -702,11 +743,65 @@ const styles = StyleSheet.create({
     paddingVertical: 11,
     borderRadius: 12,
     borderWidth: 1,
+    borderColor: C.accent,
     marginTop: 6,
   },
   addShoppingText: {
     fontSize: 13,
     fontFamily: "Outfit_600SemiBold",
+    color: C.accent,
+  },
+  doctoredSubtitle: {
+    fontSize: 13,
+    fontFamily: "Outfit_400Regular",
+    color: C.textSecondary,
+    marginBottom: 14,
+    marginTop: -4,
+  },
+  doctoredCard: {
+    backgroundColor: C.card,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: C.border,
+    padding: 16,
+    marginBottom: 12,
+  },
+  doctoredCardHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 12,
+  },
+  doctoredDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    marginTop: 5,
+  },
+  doctoredTitle: {
+    fontSize: 16,
+    fontFamily: "Outfit_700Bold",
+    marginBottom: 6,
+  },
+  taglineBadge: {
+    alignSelf: "flex-start",
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  taglineText: {
+    fontSize: 12,
+    fontFamily: "Outfit_600SemiBold",
+  },
+  whyText: {
+    fontSize: 13,
+    fontFamily: "Outfit_400Regular",
+    color: C.textSecondary,
+    lineHeight: 19,
+    marginTop: 10,
+  },
+  expandedDivider: {
+    height: 1,
+    marginVertical: 14,
   },
   emptyHero: {
     alignItems: "center",
