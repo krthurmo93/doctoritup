@@ -15,7 +15,7 @@
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.owlkimmy.doctoritup",
+      "bundleIdentifier": "Com.owlkimmy.doctoritup",
       "infoPlist": {
         "UIBackgroundModes": []
       }

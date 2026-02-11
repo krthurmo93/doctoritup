@@ -8,7 +8,7 @@ workflows:
     environment:
       ios_signing:
         distribution_type: app_store
-        bundle_identifier: com.owlkimmy.doctoritup
+        bundle_identifier: Com.owlkimmy.doctoritup
       vars:
         EXPO_PUBLIC_DOMAIN: "doctoritup"
       node: v18
