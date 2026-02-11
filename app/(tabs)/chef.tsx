@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef } from "react";
+import React, { useState, useCallback, useRef, useEffect } from "react";
 import {
   StyleSheet,
   Text,
@@ -227,6 +227,34 @@ function DoctoredCard({
   );
 }
 
+function LoadingProgress({ messages, color }: { messages: string[]; color: string }) {
+  const [msgIndex, setMsgIndex] = useState(0);
+
+  useEffect(() => {
+    setMsgIndex(0);
+    const interval = setInterval(() => {
+      setMsgIndex((prev) => (prev < messages.length - 1 ? prev + 1 : prev));
+    }, 2500);
+    return () => clearInterval(interval);
+  }, [messages.length]);
+
+  const progress = ((msgIndex + 1) / messages.length) * 100;
+
+  return (
+    <Animated.View entering={FadeIn.duration(300)} style={styles.loadingCard}>
+      <View style={styles.loadingTop}>
+        <ActivityIndicator size="small" color={color} />
+        <Animated.Text key={msgIndex} entering={FadeIn.duration(200)} style={styles.loadingText}>
+          {messages[msgIndex]}
+        </Animated.Text>
+      </View>
+      <View style={styles.progressTrack}>
+        <View style={[styles.progressFill, { width: `${progress}%`, backgroundColor: color }]} />
+      </View>
+    </Animated.View>
+  );
+}
+
 function SideDishCard({ side, index }: { side: SideDish; index: number }) {
   const { addItems } = useShopping();
   const color = "#4FC1A6";
@@ -434,12 +462,16 @@ export default function ChefScreen() {
           </View>
 
           {loading && (
-            <Animated.View entering={FadeIn.duration(300)} style={styles.loadingCard}>
-              <ActivityIndicator size="small" color={C.accent} />
-              <Text style={styles.loadingText}>
-                Cooking up your recipe and 3 creative variations...
-              </Text>
-            </Animated.View>
+            <LoadingProgress
+              messages={[
+                "Building your base recipe...",
+                "Cooking up 3 creative variations...",
+                "Adding that Southern grandma touch...",
+                "Picking the perfect side dishes...",
+                "Plating it all up for you...",
+              ]}
+              color={C.accent}
+            />
           )}
 
           {error && (
@@ -652,21 +684,34 @@ const styles = StyleSheet.create({
     color: C.upgrade,
   },
   loadingCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
     backgroundColor: C.card,
     borderRadius: 16,
     borderWidth: 1,
     borderColor: C.border,
     padding: 18,
     marginBottom: 24,
+    gap: 14,
+  },
+  loadingTop: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
   },
   loadingText: {
     fontSize: 14,
     fontFamily: "Outfit_400Regular",
     color: C.textSecondary,
     flex: 1,
+  },
+  progressTrack: {
+    height: 4,
+    backgroundColor: C.border,
+    borderRadius: 2,
+    overflow: "hidden" as const,
+  },
+  progressFill: {
+    height: 4,
+    borderRadius: 2,
   },
   errorCard: {
     flexDirection: "row",
