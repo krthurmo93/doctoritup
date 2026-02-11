@@ -1,0 +1,158 @@
+set -e
+
+echo "✅ Preparing TestFlight-safe structure (Vite+React + Express serving dist + /api)..."
+
+# 0) Backup key files
+TS=$(date +%Y%m%d_%H%M%S)
+mkdir -p _backup_$TS
+for f in package.json vite.config.js server/index.js capacitor.config.ts capacitor.config.js src/api.js src/App.jsx; do
+  if [ -f "$f" ]; then
+    mkdir -p "_backup_$TS/$(dirname "$f")"
+    cp "$f" "_backup_$TS/$f"
+  fi
+done
+echo "🧾 Backups saved in _backup_$TS/"
+
+# 1) Install deps (safe if already installed)
+npm i express cors concurrently
+npm i -D nodemon
+
+# 2) Update package.json scripts (keep existing deps; add/overwrite scripts we need)
+node - <<'NODE'
+const fs = require("fs");
+const pkg = JSON.parse(fs.readFileSync("package.json", "utf8"));
+
+pkg.scripts = pkg.scripts || {};
+pkg.scripts.dev = 'concurrently -k "vite --host 0.0.0.0 --port 3000" "nodemon server/index.js"';
+pkg.scripts.build = pkg.scripts.build || "vite build";
+pkg.scripts.start = "node server/index.js";
+pkg.scripts["cap:init"] = 'npx cap init "Doctor It Up" com.owlkimmy.doctoritup --web-dir=dist';
+pkg.scripts["cap:add:ios"] = "npx cap add ios";
+pkg.scripts["cap:sync"] = "npm run build && npx cap sync ios";
+
+pkg.dependencies = pkg.dependencies || {};
+pkg.dependencies.express = pkg.dependencies.express || "^4.19.2";
+pkg.dependencies.cors = pkg.dependencies.cors || "^2.8.5";
+pkg.dependencies.concurrently = pkg.dependencies.concurrently || "^9.0.1";
+
+pkg.devDependencies = pkg.devDependencies || {};
+pkg.devDependencies.nodemon = pkg.devDependencies.nodemon || "^3.1.4";
+
+fs.writeFileSync("package.json", JSON.stringify(pkg, null, 2));
+console.log("✅ package.json scripts updated");
+NODE
+
+# 3) Write Vite config with proxy (dev only)
+cat > vite.config.js <<'JS'
+import { defineConfig } from "vite";
+import react from "@vitejs/plugin-react";
+
+export default defineConfig({
+  plugins: [react()],
+  server: {
+    host: true,
+    port: 3000,
+    proxy: {
+      "/api": "http://localhost:3001"
+    }
+  }
+});
+JS
+echo "✅ vite.config.js written with /api proxy"
+
+# 4) Create production-safe Express server that also serves dist
+mkdir -p server
+cat > server/index.js <<'JS'
+import express from "express";
+import cors from "cors";
+import path from "path";
+import { fileURLToPath } from "url";
+
+const app = express();
+app.use(cors());
+app.use(express.json({ limit: "1mb" }));
+
+const PORT = process.env.PORT || 3001;
+
+/**
+ * ✅ IMPORTANT:
+ * In production/TestFlight, your frontend MUST call the API with relative paths:
+ *   fetch("/api/recipe-chat", ...)
+ * and this server must host BOTH /api and the built frontend (dist) under one domain.
+ */
+
+// ---- API ROUTES ----
+// If you already had a recipe-chat endpoint, paste/merge it here.
+app.post("/api/recipe-chat", async (req, res) => {
+  // Placeholder so the route exists.
+  // Replace with your real OpenAI logic (server-side only).
+  return res.json({
+    recipe: {
+      title: "Example Recipe (wire your AI here)",
+      servings: 4,
+      prep_minutes: 10,
+      cook_minutes: 20,
+      ingredients: [{ item: "salt", qty: 1, unit: "tsp", notes: null }],
+      steps: ["Replace this endpoint with your AI recipe generation."],
+      sides: [
+        { name: "Buttery rice", why: "Comfort side to balance the main.", simple_how: "Cook rice, stir in butter and salt." }
+      ],
+      doctor_it_up: [{ name: "More flavor", how: "Add garlic powder + a pat of butter." }],
+      shopping_list: ["salt", "rice", "butter"],
+      safety_note: null
+    }
+  });
+});
+
+app.get("/health", (_, res) => res.send("ok"));
+
+// ---- STATIC FRONTEND (PRODUCTION) ----
+// Serve the built Vite app from dist/
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const distPath = path.resolve(__dirname, "..", "dist");
+
+app.use(express.static(distPath));
+
+// SPA fallback: send index.html for all non-API routes
+app.get("*", (req, res) => {
+  if (req.path.startsWith("/api")) return res.status(404).json({ error: "API route not found" });
+  return res.sendFile(path.join(distPath, "index.html"));
+});
+
+app.listen(PORT, "0.0.0.0", () => {
+  console.log(`✅ Server running on http://0.0.0.0:${PORT}`);
+  console.log(`✅ Serving dist from: ${distPath}`);
+});
+JS
+echo "✅ server/index.js written (serves /api + dist)"
+
+# 5) Ensure capacitor config exists (create if missing)
+if [ ! -f capacitor.config.ts ] && [ ! -f capacitor.config.js ]; then
+  cat > capacitor.config.ts <<'TS'
+import type { CapacitorConfig } from "@capacitor/cli";
+
+const config: CapacitorConfig = {
+  appId: "com.owlkimmy.doctoritup",
+  appName: "Doctor It Up",
+  webDir: "dist",
+  bundledWebRuntime: false,
+  ios: {
+    preferredContentMode: "dark"
+  }
+};
+
+export default config;
+TS
+  echo "✅ capacitor.config.ts created"
+else
+  echo "ℹ️ capacitor.config already exists (left as-is). Make sure webDir is 'dist'."
+fi
+
+echo ""
+echo "✅ DONE. Next:"
+echo "1) Run: npm run dev (web + API together)"
+echo "2) Make sure your frontend uses fetch('/api/...') (no localhost hardcoded)"
+echo "3) For iOS: npm run cap:init (once) && npm run cap:add:ios (once) && npm run cap:sync"
+echo ""
+echo "Backups are in _backup_$TS/"
