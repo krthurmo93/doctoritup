@@ -10,7 +10,7 @@ workflows:
         distribution_type: app_store
         bundle_identifier: com.owlkimmy.doctoritup
       vars:
-        EXPO_PUBLIC_DOMAIN: ""
+        EXPO_PUBLIC_DOMAIN: "doctoritup"
       node: v18
       xcode: 15.4
       cocoapods: default
