@@ -18,6 +18,7 @@ import Animated, { FadeInDown, FadeIn } from "react-native-reanimated";
 import { LinearGradient } from "expo-linear-gradient";
 import Colors from "@/constants/colors";
 import { useShopping } from "@/lib/shopping-context";
+import { useSavedRecipes, SavedRecipe } from "@/lib/saved-recipes-context";
 import { getApiUrl } from "@/lib/query-client";
 
 const C = Colors.dark;
@@ -168,17 +169,47 @@ function DoctoredCard({
   index,
   isExpanded,
   onPress,
+  sides,
 }: {
   recipe: DoctoredRecipe;
   index: number;
   isExpanded: boolean;
   onPress: () => void;
+  sides?: SideDish[];
 }) {
+  const { saveRecipe, removeRecipe, isRecipeSaved, recipes } = useSavedRecipes();
+  const saved = isRecipeSaved(recipe.title);
   const cardColors = ["#7B68EE", "#E85D75", "#4FC1A6"];
   const color = cardColors[index % cardColors.length];
   const shoppingItems = recipe.shopping_list?.length
     ? recipe.shopping_list
     : recipe.ingredients.map((i) => formatIngredient(i));
+
+  const handleBookmark = () => {
+    if (Platform.OS !== "web") {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+    if (saved) {
+      const found = recipes.find((r) => r.title.toLowerCase() === recipe.title.toLowerCase());
+      if (found) removeRecipe(found.id);
+    } else {
+      saveRecipe({
+        id: "",
+        savedAt: 0,
+        type: "chef",
+        title: recipe.title,
+        tagline: recipe.tagline,
+        why: recipe.why,
+        servings: recipe.servings,
+        prep_minutes: recipe.prep_minutes,
+        cook_minutes: recipe.cook_minutes,
+        ingredients: recipe.ingredients,
+        steps: recipe.steps,
+        shopping_list: recipe.shopping_list,
+        sides,
+      });
+    }
+  };
 
   return (
     <Animated.View entering={FadeInDown.duration(300).delay(index * 80)}>
@@ -204,6 +235,13 @@ function DoctoredCard({
               <Text style={[styles.taglineText, { color }]}>{recipe.tagline}</Text>
             </View>
           </View>
+          <Pressable onPress={handleBookmark} hitSlop={8}>
+            <Ionicons
+              name={saved ? "bookmark" : "bookmark-outline"}
+              size={20}
+              color={color}
+            />
+          </Pressable>
           <Ionicons
             name={isExpanded ? "chevron-up" : "chevron-down"}
             size={20}
@@ -304,6 +342,7 @@ const SUGGESTIONS = [
 
 export default function ChefScreen() {
   const insets = useSafeAreaInsets();
+  const { saveRecipe, removeRecipe, isRecipeSaved, recipes: savedRecipes } = useSavedRecipes();
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<RecipeResult | null>(null);
@@ -492,7 +531,43 @@ export default function ChefScreen() {
                 </View>
 
                 <View style={styles.baseRecipeCard}>
-                  <Text style={styles.baseRecipeTitle}>{result.base.title}</Text>
+                  <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+                    <Text style={[styles.baseRecipeTitle, { flex: 1 }]}>{result.base.title}</Text>
+                    <Pressable
+                      onPress={() => {
+                        if (Platform.OS !== "web") {
+                          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                        }
+                        const baseSaved = isRecipeSaved(result.base.title);
+                        if (baseSaved) {
+                          const found = savedRecipes.find((r) => r.title.toLowerCase() === result.base.title.toLowerCase());
+                          if (found) removeRecipe(found.id);
+                        } else {
+                          saveRecipe({
+                            id: "",
+                            savedAt: 0,
+                            type: "chef",
+                            title: result.base.title,
+                            servings: result.base.servings,
+                            prep_minutes: result.base.prep_minutes,
+                            cook_minutes: result.base.cook_minutes,
+                            ingredients: result.base.ingredients,
+                            steps: result.base.steps,
+                            shopping_list: result.base.shopping_list,
+                            safety_note: result.base.safety_note,
+                            sides: result.sides,
+                          });
+                        }
+                      }}
+                      hitSlop={8}
+                    >
+                      <Ionicons
+                        name={isRecipeSaved(result.base.title) ? "bookmark" : "bookmark-outline"}
+                        size={22}
+                        color={C.accent}
+                      />
+                    </Pressable>
+                  </View>
                   <MetaChips recipe={result.base} />
 
                   {result.base.safety_note && (
@@ -531,6 +606,7 @@ export default function ChefScreen() {
                     onPress={() =>
                       setExpandedIndex(expandedIndex === i ? null : i)
                     }
+                    sides={result.sides}
                   />
                 ))}
               </Animated.View>

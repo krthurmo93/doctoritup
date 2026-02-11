@@ -18,6 +18,7 @@ import Animated, { FadeInDown, FadeIn } from "react-native-reanimated";
 import { LinearGradient } from "expo-linear-gradient";
 import Colors from "@/constants/colors";
 import { useShopping } from "@/lib/shopping-context";
+import { useSavedRecipes, SavedRecipe } from "@/lib/saved-recipes-context";
 import { getApiUrl } from "@/lib/query-client";
 
 const C = Colors.dark;
@@ -91,17 +92,50 @@ function UpgradeCard({
   index,
   isExpanded,
   onPress,
+  baseProduct,
+  baseDescription,
+  sides,
 }: {
   upgrade: Upgrade;
   index: number;
   isExpanded: boolean;
   onPress: () => void;
+  baseProduct: string;
+  baseDescription: string;
+  sides?: SideDish[];
 }) {
+  const { saveRecipe, removeRecipe, isRecipeSaved, recipes } = useSavedRecipes();
   const cardColors = ["#E8945A", "#7B68EE", "#4FC1A6"];
   const color = cardColors[index % cardColors.length];
   const shoppingItems = upgrade.shopping_list?.length
     ? upgrade.shopping_list
     : upgrade.add_ingredients.map((i) => formatIngredient(i));
+  const saved = isRecipeSaved(upgrade.title);
+
+  const toggleBookmark = () => {
+    if (Platform.OS !== "web") {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+    if (saved) {
+      const found = recipes.find((r) => r.title.toLowerCase() === upgrade.title.toLowerCase());
+      if (found) removeRecipe(found.id);
+    } else {
+      saveRecipe({
+        id: "",
+        savedAt: 0,
+        type: "doctor",
+        title: upgrade.title,
+        tagline: upgrade.tagline,
+        why: upgrade.why,
+        add_ingredients: upgrade.add_ingredients,
+        steps: upgrade.steps,
+        shopping_list: upgrade.shopping_list,
+        base_product: baseProduct,
+        base_description: baseDescription,
+        sides,
+      });
+    }
+  };
 
   return (
     <Animated.View entering={FadeInDown.duration(300).delay(index * 80)}>
@@ -127,6 +161,13 @@ function UpgradeCard({
               <Text style={[styles.taglineText, { color }]}>{upgrade.tagline}</Text>
             </View>
           </View>
+          <Pressable onPress={toggleBookmark} style={{ padding: 4, marginRight: 4 }}>
+            <Ionicons
+              name={saved ? "bookmark" : "bookmark-outline"}
+              size={20}
+              color={color}
+            />
+          </Pressable>
           <Ionicons
             name={isExpanded ? "chevron-up" : "chevron-down"}
             size={20}
@@ -264,6 +305,7 @@ export default function DoctorItUpScreen() {
   const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const scrollRef = useRef<ScrollView>(null);
+  const { saveRecipe, removeRecipe, isRecipeSaved, recipes } = useSavedRecipes();
 
   const webTopInset = Platform.OS === "web" ? 67 : 0;
   const webBottomInset = Platform.OS === "web" ? 34 : 0;
@@ -434,7 +476,36 @@ export default function DoctorItUpScreen() {
                 <View style={styles.baseCard}>
                   <View style={styles.baseCardHeader}>
                     <Ionicons name="cube-outline" size={20} color={C.textSecondary} />
-                    <Text style={styles.baseProductName}>{result.base_product}</Text>
+                    <Text style={[styles.baseProductName, { flex: 1 }]}>{result.base_product}</Text>
+                    <Pressable
+                      onPress={() => {
+                        if (Platform.OS !== "web") {
+                          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                        }
+                        const baseSaved = isRecipeSaved(result.base_product);
+                        if (baseSaved) {
+                          const found = recipes.find((r) => r.title.toLowerCase() === result.base_product.toLowerCase());
+                          if (found) removeRecipe(found.id);
+                        } else {
+                          saveRecipe({
+                            id: "",
+                            savedAt: 0,
+                            type: "doctor",
+                            title: result.base_product,
+                            base_product: result.base_product,
+                            base_description: result.base_description,
+                            sides: result.sides,
+                          });
+                        }
+                      }}
+                      style={{ padding: 4 }}
+                    >
+                      <Ionicons
+                        name={isRecipeSaved(result.base_product) ? "bookmark" : "bookmark-outline"}
+                        size={20}
+                        color={C.textSecondary}
+                      />
+                    </Pressable>
                   </View>
                   <Text style={styles.baseDescription}>{result.base_description}</Text>
                 </View>
@@ -461,6 +532,9 @@ export default function DoctorItUpScreen() {
                     index={i}
                     isExpanded={expandedIndex === i}
                     onPress={() => setExpandedIndex(expandedIndex === i ? null : i)}
+                    baseProduct={result.base_product}
+                    baseDescription={result.base_description}
+                    sides={result.sides}
                   />
                 ))}
               </Animated.View>
