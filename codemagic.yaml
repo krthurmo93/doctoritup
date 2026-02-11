@@ -40,7 +40,7 @@ workflows:
       - $HOME/Library/Developer/Xcode/DerivedData/**/Build/**/*.dSYM
     publishing:
       app_store_connect:
-        auth: integration
+        auth: environment
         submit_to_testflight: true
         beta_groups:
           - App Store Connect Users
