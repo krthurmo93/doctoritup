@@ -1,0 +1,424 @@
+set -e
+
+echo "✅ Adding ChatStyle AI recipe endpoint + chat UI..."
+
+# 1) Install OpenAI SDK (server-side only)
+npm i openai
+
+# 2) Ensure backend deps exist (if you don't already have them, this is safe)
+npm i express cors concurrently
+npm i -D nodemon
+
+# 3) Update package.json dev script to run FE+BE together
+node - <<'NODE'
+const fs = require("fs");
+const pkg = JSON.parse(fs.readFileSync("package.json","utf8"));
+
+pkg.scripts = pkg.scripts || {};
+pkg.scripts.dev = "concurrently -k \"vite --host 0.0.0.0 --port 3000\" \"nodemon server/index.js\"";
+pkg.scripts.build = pkg.scripts.build || "vite build";
+
+pkg.dependencies = pkg.dependencies || {};
+pkg.dependencies.openai = pkg.dependencies.openai || "^4.0.0";
+pkg.dependencies.express = pkg.dependencies.express || "^4.19.2";
+pkg.dependencies.cors = pkg.dependencies.cors || "^2.8.5";
+pkg.dependencies.concurrently = pkg.dependencies.concurrently || "^9.0.1";
+
+pkg.devDependencies = pkg.devDependencies || {};
+pkg.devDependencies.nodemon = pkg.devDependencies.nodemon || "^3.1.4";
+
+fs.writeFileSync("package.json", JSON.stringify(pkg, null, 2));
+console.log("✅ package.json updated");
+NODE
+
+# 4) Add Vite proxy so frontend can call /api/* cleanly in dev
+cat > vite.config.js <<'JS'
+import { defineConfig } from "vite";
+import react from "@vitejs/plugin-react";
+
+export default defineConfig({
+  plugins: [react()],
+  server: {
+    host: true,
+    port: 3000,
+    proxy: {
+      "/api": "http://localhost:3001"
+    }
+  }
+});
+JS
+
+# 5) Create/replace server with OpenAI chat recipe endpoint
+mkdir -p server
+cat > server/index.js <<'JS'
+import express from "express";
+import cors from "cors";
+import OpenAI from "openai";
+
+const app = express();
+app.use(cors());
+app.use(express.json({ limit: "1mb" }));
+
+const PORT = process.env.PORT || 3001;
+
+// OpenAI client reads OPENAI_API_KEY from env (recommended)
+const client = new OpenAI();
+
+/**
+ * POST /api/recipe-chat
+ * Body: { message: string, preferences?: object }
+ * Returns: { recipe: { ...structured json... } }
+ */
+app.post("/api/recipe-chat", async (req, res) => {
+  try {
+    const message = String(req.body?.message || "").trim();
+    const preferences = req.body?.preferences || {};
+
+    if (!message) {
+      return res.status(400).json({ error: "Missing message" });
+    }
+
+    const system = `
+You are Doctor It Up, a friendly recipe assistant.
+
+RULES:
+- Output MUST be valid JSON only. No markdown, no backticks, no extra text.
+- Be realistic about cook times and quantities.
+- Prefer common grocery-store ingredients.
+- Include a shopping_list array derived from ingredients (item names only).
+- Include a short doctor_it_up array with 3-6 upgrades (each has name + how).
+- Include a safety_note if meat/seafood/eggs appear (e.g., cook to safe internal temps).
+- If user asks for something unsafe/inedible, refuse and suggest safe alternatives.
+
+JSON SCHEMA:
+{
+  "title": string,
+  "servings": number,
+  "prep_minutes": number,
+  "cook_minutes": number,
+  "ingredients": [{"item": string, "qty": number|null, "unit": string|null, "notes": string|null}],
+  "steps": string[],
+  "doctor_it_up": [{"name": string, "how": string}],
+  "shopping_list": string[],
+  "safety_note": string|null
+}
+    `.trim();
+
+    const user = `
+User request: ${message}
+Preferences (optional): ${JSON.stringify(preferences)}
+    `.trim();
+
+    const response = await client.responses.create({
+      model: "gpt-5.2",
+      input: [
+        { role: "system", content: system },
+        { role: "user", content: user }
+      ]
+    });
+
+    const text = response.output_text?.trim() || "";
+
+    // Parse and validate JSON
+    let recipe;
+    try {
+      recipe = JSON.parse(text);
+    } catch {
+      return res.status(502).json({
+        error: "AI did not return valid JSON",
+        raw: text.slice(0, 2000)
+      });
+    }
+
+    return res.json({ recipe });
+  } catch (e) {
+    return res.status(500).json({ error: "Recipe generation failed", detail: String(e) });
+  }
+});
+
+app.get("/health", (_, res) => res.send("ok"));
+
+app.listen(PORT, "0.0.0.0", () => {
+  console.log(`✅ Backend running on http://0.0.0.0:${PORT}`);
+});
+JS
+
+# 6) Frontend: Chat UI + shopping list (replaces App.jsx)
+cat > src/App.jsx <<'JSX'
+import React, { useEffect, useMemo, useState } from "react";
+import "./styles.css";
+
+function loadShopping() {
+  try { return JSON.parse(localStorage.getItem("shopping_list_v1") || "[]"); }
+  catch { return []; }
+}
+function saveShopping(list) {
+  localStorage.setItem("shopping_list_v1", JSON.stringify(list));
+}
+
+async function generateRecipe(message, preferences) {
+  const r = await fetch("/api/recipe-chat", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ message, preferences })
+  });
+  const data = await r.json();
+  if (!r.ok) throw new Error(data?.error || "Generation failed");
+  return data.recipe;
+}
+
+function RecipeCard({ recipe, onAddToShopping }) {
+  if (!recipe) return null;
+
+  return (
+    <div className="card" style={{ marginTop: 14 }}>
+      <h2 style={{ marginBottom: 6 }}>{recipe.title}</h2>
+      <p className="muted" style={{ marginTop: 0 }}>
+        Serves {recipe.servings} • Prep {recipe.prep_minutes}m • Cook {recipe.cook_minutes}m
+      </p>
+
+      {recipe.safety_note ? (
+        <div className="notice">
+          <strong>Safety:</strong> {recipe.safety_note}
+        </div>
+      ) : null}
+
+      <div className="row" style={{ marginTop: 10 }}>
+        <div className="col">
+          <h3 className="subhead">Ingredients</h3>
+          <ul>
+            {(recipe.ingredients || []).map((i, idx) => (
+              <li key={idx}>
+                <span>
+                  {i.qty ?? ""} {i.unit ?? ""} {i.item}
+                  {i.notes ? ` (${i.notes})` : ""}
+                </span>
+              </li>
+            ))}
+          </ul>
+          <button className="btnWide" onClick={() => onAddToShopping(recipe.ingredients || [])}>
+            Add ingredients to Shopping List
+          </button>
+        </div>
+
+        <div className="col">
+          <h3 className="subhead">Steps</h3>
+          <ol>
+            {(recipe.steps || []).map((s, idx) => <li key={idx}>{s}</li>)}
+          </ol>
+        </div>
+      </div>
+
+      <h3 className="subhead" style={{ marginTop: 10 }}>Doctor It Up</h3>
+      <div className="list">
+        {(recipe.doctor_it_up || []).map((d, idx) => (
+          <div key={idx} className="listItem" style={{ cursor: "default" }}>
+            <div className="listItemTitle">{d.name}</div>
+            <div className="muted" style={{ fontSize: 12, lineHeight: 1.35 }}>{d.how}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export default function App() {
+  const [chat, setChat] = useState([
+    { role: "assistant", text: "Tell me what you want to cook (or what you have). Example: “I have chicken thighs, rice, broccoli. Make it spicy and creamy.”" }
+  ]);
+  const [input, setInput] = useState("I have box cake mix. Make it taste bakery-level, super moist.");
+  const [loading, setLoading] = useState(false);
+  const [recipe, setRecipe] = useState(null);
+
+  const [shopping, setShopping] = useState(loadShopping());
+  useEffect(() => saveShopping(shopping), [shopping]);
+
+  const preferences = useMemo(() => ({
+    dietary: "",
+    avoid: "",
+    budget: "normal"
+  }), []);
+
+  function addIngredientsToShopping(items) {
+    const normalized = (items || [])
+      .map(x => (x?.item ? String(x.item).trim() : ""))
+      .filter(Boolean);
+
+    const existing = new Map(shopping.map(i => [i.text.toLowerCase(), i]));
+    for (const text of normalized) {
+      const key = text.toLowerCase();
+      if (!existing.has(key)) existing.set(key, { text, checked: false });
+    }
+    setShopping(Array.from(existing.values()));
+  }
+
+  function toggleItem(idx) {
+    setShopping(prev => prev.map((it, i) => i === idx ? { ...it, checked: !it.checked } : it));
+  }
+
+  function clearChecked() {
+    setShopping(prev => prev.filter(it => !it.checked));
+  }
+
+  async function send() {
+    const msg = input.trim();
+    if (!msg) return;
+
+    setChat(prev => [...prev, { role: "user", text: msg }]);
+    setInput("");
+    setLoading(true);
+    setRecipe(null);
+
+    try {
+      const r = await generateRecipe(msg, preferences);
+      setRecipe(r);
+      setChat(prev => [...prev, { role: "assistant", text: `Done. I generated: ${r.title}` }]);
+    } catch (e) {
+      setChat(prev => [...prev, { role: "assistant", text: `Error: ${String(e.message || e)}` }]);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="container">
+      <div className="header">
+        <div className="brand">
+          <h1>Doctor It Up (ChatStyle AI)</h1>
+          <p>Chat → structured recipe → shopping list.</p>
+        </div>
+      </div>
+
+      <div className="row" style={{ marginTop: 14 }}>
+        <div className="col">
+          <div className="card">
+            <h2>Chat</h2>
+            <div className="chatBox">
+              {chat.map((m, idx) => (
+                <div key={idx} className={"bubble " + (m.role === "user" ? "user" : "assistant")}>
+                  {m.text}
+                </div>
+              ))}
+            </div>
+
+            <div className="searchBox" style={{ marginTop: 12 }}>
+              <input
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                placeholder="Describe the recipe you want…"
+                onKeyDown={(e) => { if (e.key === "Enter") send(); }}
+              />
+              <button className="btn" onClick={send} disabled={loading}>
+                {loading ? "Generating…" : "Send"}
+              </button>
+            </div>
+
+            <div className="hint">
+              Tip: Add constraints like “high-protein”, “dairy-free”, “15 minutes”, “kid friendly”.
+            </div>
+          </div>
+
+          <div className="card" style={{ marginTop: 14 }}>
+            <h2>Shopping List</h2>
+            {shopping.length === 0 ? (
+              <p className="muted">No items yet. Generate a recipe and tap “Add ingredients.”</p>
+            ) : (
+              <>
+                <div className="list">
+                  {shopping.map((it, idx) => (
+                    <button
+                      key={idx}
+                      className={"listItem " + (it.checked ? "checked" : "")}
+                      onClick={() => toggleItem(idx)}
+                    >
+                      <div className="listItemTitle">{it.checked ? "✅ " : "⬜️ "}{it.text}</div>
+                    </button>
+                  ))}
+                </div>
+                <button className="btnWide" onClick={clearChecked} style={{ marginTop: 10 }}>
+                  Remove checked items
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+
+        <div className="col">
+          <RecipeCard recipe={recipe} onAddToShopping={addIngredientsToShopping} />
+
+          <div className="card" style={{ marginTop: 14 }}>
+            <h2>Capacitor / TestFlight Notes</h2>
+            <p className="muted" style={{ marginTop: 0 }}>
+              Keep your OpenAI key on the server. The iOS app calls your backend /api/recipe-chat.
+            </p>
+            <ol>
+              <li>Build web: <code>npm run build</code></li>
+              <li>Sync to iOS: <code>npx cap sync</code></li>
+              <li>Archive & upload in Xcode (or CI like Codemagic).</li>
+            </ol>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+JSX
+
+# 7) Light CSS additions for chat bubbles (append to existing styles.css if present)
+if [ -f src/styles.css ]; then
+  cat >> src/styles.css <<'CSS'
+
+/* Chat UI additions */
+.chatBox {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 360px;
+  overflow: auto;
+  padding: 10px;
+  border: 1px solid rgba(255,255,255,0.10);
+  border-radius: 14px;
+  background: rgba(0,0,0,0.18);
+}
+
+.bubble {
+  padding: 10px 12px;
+  border-radius: 14px;
+  line-height: 1.35;
+  font-size: 14px;
+  border: 1px solid rgba(255,255,255,0.10);
+}
+
+.bubble.user {
+  align-self: flex-end;
+  background: rgba(255,255,255,0.12);
+}
+
+.bubble.assistant {
+  align-self: flex-start;
+  background: rgba(255,255,255,0.06);
+}
+
+.notice {
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(255,255,255,0.14);
+  background: rgba(255,255,255,0.08);
+  margin: 10px 0;
+}
+
+.subhead {
+  margin: 8px 0 6px;
+  font-size: 13px;
+  color: rgba(255,255,255,0.75);
+}
+
+.listItem.checked {
+  opacity: 0.7;
+}
+CSS
+fi
+
+echo ""
+echo "✅ Done."
+echo "Now run: npm run dev"
