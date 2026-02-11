@@ -6,11 +6,9 @@ workflows:
     environment:
       groups:
         - appstore
-      ios_signing:
-        distribution_type: app_store
-        bundle_identifier: Com.owlkimmy.doctoritup
       vars:
         EXPO_PUBLIC_DOMAIN: "doctoritup"
+        BUNDLE_ID: "Com.owlkimmy.doctoritup"
       node: v18
       xcode: 15.4
       cocoapods: default
@@ -25,6 +23,9 @@ workflows:
         script: |
           npx expo prebuild --platform ios --clean
       - name: Set up code signing
+        script: |
+          app-store-connect fetch-signing-files "Com.owlkimmy.doctoritup" --type IOS_APP_STORE --create
+      - name: Use profiles
         script: |
           xcode-project use-profiles
       - name: Build iOS
