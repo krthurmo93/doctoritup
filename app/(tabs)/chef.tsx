@@ -52,9 +52,17 @@ interface DoctoredRecipe {
   shopping_list: string[];
 }
 
+interface SideDish {
+  name: string;
+  why_it_works: string;
+  how_to_make: string;
+  shopping_list: string[];
+}
+
 interface RecipeResult {
   base: BaseRecipe;
   doctored: DoctoredRecipe[];
+  sides?: SideDish[];
 }
 
 function formatIngredient(ing: Ingredient): string {
@@ -215,6 +223,44 @@ function DoctoredCard({
           </Animated.View>
         )}
       </Pressable>
+    </Animated.View>
+  );
+}
+
+function SideDishCard({ side, index }: { side: SideDish; index: number }) {
+  const { addItems } = useShopping();
+  const color = "#4FC1A6";
+  return (
+    <Animated.View entering={FadeInDown.duration(250).delay(index * 60)}>
+      <View style={[styles.sideCard, { borderColor: color + "25" }]}>
+        <View style={styles.sideCardHeader}>
+          <View style={[styles.sideDot, { backgroundColor: color }]} />
+          <Text style={[styles.sideName, { color }]}>{side.name}</Text>
+        </View>
+        <Text style={styles.sideWhy}>{side.why_it_works}</Text>
+        <View style={[styles.sideHowBlock, { backgroundColor: color + "0A" }]}>
+          <Text style={styles.sideHowLabel}>How to make it:</Text>
+          <Text style={styles.sideHow}>{side.how_to_make}</Text>
+        </View>
+        {side.shopping_list?.length > 0 && (
+          <Pressable
+            onPress={() => {
+              if (Platform.OS !== "web") {
+                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+              }
+              addItems(side.shopping_list);
+            }}
+            style={({ pressed }) => [
+              styles.sideShopBtn,
+              { borderColor: color + "40" },
+              pressed && { opacity: 0.7 },
+            ]}
+          >
+            <Ionicons name="cart-outline" size={14} color={color} />
+            <Text style={[styles.sideShopText, { color }]}>Add to List</Text>
+          </Pressable>
+        )}
+      </View>
     </Animated.View>
   );
 }
@@ -456,6 +502,27 @@ export default function ChefScreen() {
                   />
                 ))}
               </Animated.View>
+
+              {result.sides && result.sides.length > 0 && (
+                <Animated.View
+                  entering={FadeInDown.duration(300).delay(300)}
+                  style={styles.section}
+                >
+                  <View style={styles.sectionHeader}>
+                    <MaterialCommunityIcons name="silverware-variant" size={18} color="#4FC1A6" />
+                    <Text style={[styles.sectionTitle, { color: "#4FC1A6" }]}>
+                      What to Serve Alongside
+                    </Text>
+                  </View>
+                  <Text style={styles.doctoredSubtitle}>
+                    Sides that round out the meal
+                  </Text>
+
+                  {result.sides.map((side, i) => (
+                    <SideDishCard key={i} side={side} index={i} />
+                  ))}
+                </Animated.View>
+              )}
             </>
           )}
 
@@ -802,6 +869,67 @@ const styles = StyleSheet.create({
   expandedDivider: {
     height: 1,
     marginVertical: 14,
+  },
+  sideCard: {
+    backgroundColor: C.card,
+    borderRadius: 14,
+    borderWidth: 1,
+    padding: 14,
+    marginBottom: 10,
+  },
+  sideCardHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginBottom: 6,
+  },
+  sideDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  sideName: {
+    fontSize: 15,
+    fontFamily: "Outfit_700Bold",
+  },
+  sideWhy: {
+    fontSize: 13,
+    fontFamily: "Outfit_400Regular",
+    color: C.textSecondary,
+    lineHeight: 18,
+    marginBottom: 8,
+  },
+  sideHowBlock: {
+    borderRadius: 10,
+    padding: 10,
+    marginBottom: 8,
+  },
+  sideHowLabel: {
+    fontSize: 11,
+    fontFamily: "Outfit_600SemiBold",
+    color: C.textSecondary,
+    marginBottom: 4,
+    textTransform: "uppercase" as const,
+    letterSpacing: 0.4,
+  },
+  sideHow: {
+    fontSize: 13,
+    fontFamily: "Outfit_400Regular",
+    color: C.text,
+    lineHeight: 19,
+  },
+  sideShopBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 5,
+    paddingVertical: 8,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
+  sideShopText: {
+    fontSize: 12,
+    fontFamily: "Outfit_600SemiBold",
   },
   emptyHero: {
     alignItems: "center",

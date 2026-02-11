@@ -2,16 +2,28 @@
 
 ## Overview
 
-Doctor It Up is a recipe enhancement mobile app built with Expo (React Native) and an Express backend. The core concept is helping users "doctor up" any recipe with creative ingredient swaps, shortcuts, and flavor upgrades. The app has two main features:
+Doctor It Up is a recipe enhancement mobile app built with Expo (React Native) and an Express backend. The app has three tabs:
 
-1. **Doctor It Up** (main tab) — Users describe what they want to cook, AI generates a base recipe PLUS 3 complete "doctored up" alternative versions. Each doctored version is a full recipe with its own ingredients and steps (e.g., using pancake mix instead of scratch batter, slow cooker method, brown butter upgrade). Users can expand any version to see the full recipe and add ingredients to their shopping list.
-2. **Shopping List** — A persistent shopping list where users can add ingredients from any recipe version and check them off
+1. **Doctor It Up** (main tab) — Users enter a pre-made/boxed item they already have (box cake mix, instant ramen, frozen pizza, etc.) and get 3 creative upgrade suggestions with extra ingredients and modified steps to make it taste homemade.
+2. **AI Chef** — Users describe what they want to cook from scratch, AI generates a base recipe plus 3 complete alternative versions with different techniques, ingredient swaps, and shortcuts.
+3. **Shopping List** — A persistent shopping list where users can add ingredients from any recipe or side dish and check them off.
+
+Both recipe tabs also recommend 2-4 complementary side dishes that balance the meal, with brief explanations of why each works and simple preparation methods.
 
 The app targets mobile (iOS/Android) via Expo and also supports web.
 
 ## User Preferences
 
 Preferred communication style: Simple, everyday language.
+
+### Cooking Style Defaults
+- Default to Southern home-style cooking inspired by a skilled grandmother
+- Prioritize flavor, comfort, and practical techniques
+- Use familiar, affordable ingredients — nothing fancy or hard to find
+- Avoid chef jargon — write instructions like you're talking to a neighbor
+- Always recommend 2-4 complementary side dishes that balance the meal
+- Each side explains why it works and gives a simple preparation method
+- Sides should feel realistic for a home cook, not restaurant-level
 
 ## System Architecture
 

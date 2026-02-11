@@ -104,7 +104,7 @@ Preferences (optional): ${JSON.stringify(preferences)}
           { role: "system", content: system },
           { role: "user", content: user },
         ],
-        max_completion_tokens: 4096,
+        max_completion_tokens: 5120,
       });
 
       const text = response.choices[0]?.message?.content?.trim() || "";
@@ -218,7 +218,7 @@ Generate 2-4 side dishes in the "sides" array.
           { role: "system", content: system },
           { role: "user", content: user },
         ],
-        max_completion_tokens: 3072,
+        max_completion_tokens: 4096,
       });
 
       const text = response.choices[0]?.message?.content?.trim() || "";
