@@ -1,0 +1,633 @@
+set -e
+
+echo "✅ Scaffolding Doctor It Up (Vite + React) files..."
+
+# -------------------------
+# Root files
+# -------------------------
+cat > package.json <<'JSON'
+{
+  "name": "doctor-it-up",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0 --port 3000",
+    "build": "vite build",
+    "preview": "vite preview --host 0.0.0.0 --port 3000",
+
+    "cap:init": "npx cap init \"Doctor It Up\" com.owlkimmy.doctoritup --web-dir=dist",
+    "cap:add:ios": "npx cap add ios",
+    "cap:sync": "npm run build && npx cap sync"
+  },
+  "dependencies": {
+    "@capacitor/core": "^6.1.0",
+    "@capacitor/ios": "^6.1.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.1",
+    "vite": "^5.4.2"
+  }
+}
+JSON
+
+cat > vite.config.js <<'JS'
+import { defineConfig } from "vite";
+import react from "@vitejs/plugin-react";
+
+export default defineConfig({
+  plugins: [react()],
+  server: {
+    host: true,
+    port: 3000
+  }
+});
+JS
+
+cat > capacitor.config.ts <<'TS'
+import type { CapacitorConfig } from "@capacitor/cli";
+
+const config: CapacitorConfig = {
+  appId: "com.owlkimmy.doctoritup",
+  appName: "Doctor It Up",
+  webDir: "dist",
+  bundledWebRuntime: false
+};
+
+export default config;
+TS
+
+# -------------------------
+# src folder
+# -------------------------
+mkdir -p src/data
+
+cat > src/main.jsx <<'JSX'
+import React from "react";
+import ReactDOM from "react-dom/client";
+import App from "./App.jsx";
+import "./styles.css";
+
+ReactDOM.createRoot(document.getElementById("root")).render(
+  <React.StrictMode>
+    <App />
+  </React.StrictMode>
+);
+JSX
+
+cat > src/data/recipes.js <<'JS'
+export const RECIPES = [
+  {
+    id: "box-cake-vanilla",
+    title: "Vanilla Box Cake (Base)",
+    tags: ["box cake", "dessert", "easy"],
+    ingredients: [
+      "1 box vanilla cake mix",
+      "Eggs, water, oil (per box directions)"
+    ],
+    steps: [
+      "Preheat oven as directed on box.",
+      "Mix cake batter using box directions.",
+      "Bake and cool."
+    ]
+  },
+  {
+    id: "boxed-brownies",
+    title: "Boxed Brownies (Base)",
+    tags: ["brownies", "dessert", "easy"],
+    ingredients: [
+      "1 box brownie mix",
+      "Eggs, water, oil (per box directions)"
+    ],
+    steps: [
+      "Preheat oven as directed on box.",
+      "Mix batter using box directions.",
+      "Bake until set. Cool before slicing."
+    ]
+  },
+  {
+    id: "instant-ramen",
+    title: "Instant Ramen (Base)",
+    tags: ["ramen", "quick", "savory"],
+    ingredients: [
+      "1 pack instant ramen",
+      "2 cups water"
+    ],
+    steps: [
+      "Bring water to a boil.",
+      "Add noodles and cook 2–3 minutes.",
+      "Stir in seasoning packet and serve."
+    ]
+  }
+];
+
+export function searchRecipes(query) {
+  const q = (query || "").trim().toLowerCase();
+  if (!q) return [];
+  return RECIPES.filter(r =>
+    r.title.toLowerCase().includes(q) ||
+    r.tags.some(t => t.includes(q))
+  );
+}
+JS
+
+cat > src/data/rules.js <<'JS'
+/**
+ * Doctor It Up rules:
+ * - Each rule has a match list (keywords)
+ * - Each upgrade has: title, why, addIngredients, stepAdds
+ */
+export const DOCTOR_RULES = [
+  {
+    key: "box-cake",
+    match: ["box cake", "cake mix", "cake"],
+    upgrades: [
+      {
+        id: "cake-milk-butter",
+        title: "Make it richer (milk + melted butter)",
+        why: "Milk adds tenderness and flavor; butter adds richness.",
+        addIngredients: [
+          "Swap water for milk (same amount as box calls for)",
+          "Swap oil for melted butter (same amount as oil)"
+        ],
+        stepAdds: [
+          "Use milk instead of water.",
+          "Use melted butter instead of oil."
+        ]
+      },
+      {
+        id: "cake-extra-egg",
+        title: "Moist + bakery texture (add 1 extra egg)",
+        why: "An extra egg boosts structure and moisture for a more bakery-style crumb.",
+        addIngredients: ["Add 1 extra egg (beyond box directions)"],
+        stepAdds: ["Add one extra egg before mixing."]
+      },
+      {
+        id: "cake-pudding",
+        title: "Soft + thick crumb (add pudding mix)",
+        why: "Instant pudding mix helps keep cakes softer and moister.",
+        addIngredients: ["Add 1 small box instant pudding mix (dry)"],
+        stepAdds: ["Whisk in dry pudding mix with the cake mix before adding wet ingredients."]
+      }
+    ]
+  },
+  {
+    key: "brownies",
+    match: ["brownies", "brownie"],
+    upgrades: [
+      {
+        id: "brownie-espresso",
+        title: "Deeper chocolate (espresso powder)",
+        why: "A little espresso enhances chocolate without making it taste like coffee.",
+        addIngredients: ["Add 1 tsp espresso powder (optional)"],
+        stepAdds: ["Stir espresso powder into dry mix before adding wet ingredients."]
+      },
+      {
+        id: "brownie-extra-yolk",
+        title: "Fudgier (add 1 egg yolk)",
+        why: "Extra yolk increases fat and gives a fudgier texture.",
+        addIngredients: ["Add 1 extra egg yolk"],
+        stepAdds: ["Add one additional egg yolk to the batter and mix until smooth."]
+      },
+      {
+        id: "brownie-choc-chips",
+        title: "Chocolate pockets (fold in chips)",
+        why: "Chocolate chips create melty bites and richer flavor.",
+        addIngredients: ["Fold in 1/2 cup chocolate chips"],
+        stepAdds: ["Fold in chocolate chips right before baking."]
+      }
+    ]
+  },
+  {
+    key: "ramen",
+    match: ["ramen", "instant ramen", "noodles"],
+    upgrades: [
+      {
+        id: "ramen-egg",
+        title: "Protein upgrade (soft egg)",
+        why: "Egg adds protein and makes it feel like a real meal.",
+        addIngredients: ["Add 1 egg (soft-boiled or poached)"],
+        stepAdds: ["Top with a soft-boiled or poached egg."]
+      },
+      {
+        id: "ramen-broth",
+        title: "Better broth (butter + garlic + soy)",
+        why: "Butter and garlic add depth; soy adds umami.",
+        addIngredients: ["Add 1 tsp butter", "Add 1/2 tsp garlic (minced or powder)", "Add 1 tsp soy sauce"],
+        stepAdds: ["Stir butter, garlic, and soy into the broth at the end."]
+      },
+      {
+        id: "ramen-crunch",
+        title: "Crunch + freshness (green onion + sesame)",
+        why: "Fresh toppings make instant ramen taste upgraded.",
+        addIngredients: ["Top with sliced green onion", "Sprinkle sesame seeds"],
+        stepAdds: ["Finish with green onion and sesame seeds."]
+      }
+    ]
+  }
+];
+
+export function getUpgradesForRecipe(recipe) {
+  if (!recipe) return [];
+  const text = (recipe.title + " " + (recipe.tags || []).join(" ")).toLowerCase();
+  for (const rule of DOCTOR_RULES) {
+    if (rule.match.some(k => text.includes(k))) return rule.upgrades;
+  }
+  return [];
+}
+
+export function applyUpgrade(recipe, upgrade) {
+  if (!recipe || !upgrade) return null;
+
+  const baseIngredients = recipe.ingredients || [];
+  const baseSteps = recipe.steps || [];
+
+  const remixedIngredients = [
+    ...baseIngredients,
+    "",
+    "— Doctor It Up Adds —",
+    ...upgrade.addIngredients
+  ];
+
+  const remixedSteps = [
+    ...baseSteps,
+    "",
+    "— Doctor It Up Steps —",
+    ...upgrade.stepAdds
+  ];
+
+  return {
+    title: `${recipe.title} + ${upgrade.title}`,
+    why: upgrade.why,
+    ingredients: remixedIngredients,
+    steps: remixedSteps
+  };
+}
+JS
+
+cat > src/App.jsx <<'JSX'
+import React, { useMemo, useState } from "react";
+import { searchRecipes } from "./data/recipes.js";
+import { applyUpgrade, getUpgradesForRecipe } from "./data/rules.js";
+
+function Pill({ children }) {
+  return <span className="pill">{children}</span>;
+}
+
+function ListBlock({ title, items }) {
+  return (
+    <div className="block">
+      <h3>{title}</h3>
+      <ul>
+        {items.map((x, i) => (
+          <li key={i}>{x}</li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+export default function App() {
+  const [query, setQuery] = useState("box cake");
+  const [selectedRecipe, setSelectedRecipe] = useState(null);
+  const [selectedUpgrade, setSelectedUpgrade] = useState(null);
+
+  const results = useMemo(() => searchRecipes(query), [query]);
+
+  const upgrades = useMemo(() => getUpgradesForRecipe(selectedRecipe), [selectedRecipe]);
+
+  const remixed = useMemo(() => {
+    if (!selectedRecipe || !selectedUpgrade) return null;
+    return applyUpgrade(selectedRecipe, selectedUpgrade);
+  }, [selectedRecipe, selectedUpgrade]);
+
+  return (
+    <div className="container">
+      <div className="header">
+        <div className="brand">
+          <h1>Doctor It Up</h1>
+          <p>Search a base recipe, then tap upgrades to remix it.</p>
+        </div>
+        <div className="pillGroup">
+          <Pill>MVP</Pill>
+          <Pill>Capacitor-ready</Pill>
+        </div>
+      </div>
+
+      <div className="card" style={{ marginTop: 14 }}>
+        <div className="searchBox">
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder='Try: "box cake", "brownies", "ramen"'
+            aria-label="Search recipes"
+          />
+          <button
+            className="btn"
+            onClick={() => {
+              // pick first result for convenience
+              const first = searchRecipes(query)[0] || null;
+              setSelectedRecipe(first);
+              setSelectedUpgrade(null);
+            }}
+          >
+            Search
+          </button>
+        </div>
+
+        <div className="hint">
+          Tip: click “Search” then choose a recipe from results.
+        </div>
+      </div>
+
+      <div className="row" style={{ marginTop: 14 }}>
+        <div className="col">
+          <div className="card">
+            <h2>Results</h2>
+            {results.length === 0 ? (
+              <p className="muted">No results yet. Try “box cake”, “brownies”, or “ramen”.</p>
+            ) : (
+              <div className="list">
+                {results.map((r) => (
+                  <button
+                    key={r.id}
+                    className={"listItem " + (selectedRecipe?.id === r.id ? "active" : "")}
+                    onClick={() => {
+                      setSelectedRecipe(r);
+                      setSelectedUpgrade(null);
+                    }}
+                  >
+                    <div className="listItemTitle">{r.title}</div>
+                    <div className="listItemTags">
+                      {r.tags.slice(0, 3).map((t) => (
+                        <span key={t} className="tag">{t}</span>
+                      ))}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="card" style={{ marginTop: 14 }}>
+            <h2>Doctor It Up</h2>
+            {!selectedRecipe ? (
+              <p className="muted">Select a recipe first.</p>
+            ) : upgrades.length === 0 ? (
+              <p className="muted">No upgrades found for this recipe yet.</p>
+            ) : (
+              <div className="list">
+                {upgrades.map((u) => (
+                  <button
+                    key={u.id}
+                    className={"listItem " + (selectedUpgrade?.id === u.id ? "active" : "")}
+                    onClick={() => setSelectedUpgrade(u)}
+                  >
+                    <div className="listItemTitle">{u.title}</div>
+                    <div className="listItemSub muted">{u.why}</div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="col">
+          <div className="card">
+            <h2>Base Recipe</h2>
+            {!selectedRecipe ? (
+              <p className="muted">Pick a recipe from the results.</p>
+            ) : (
+              <>
+                <h3 className="recipeTitle">{selectedRecipe.title}</h3>
+                <ListBlock title="Ingredients" items={selectedRecipe.ingredients} />
+                <ListBlock title="Steps" items={selectedRecipe.steps} />
+              </>
+            )}
+          </div>
+
+          <div className="card" style={{ marginTop: 14 }}>
+            <h2>Remixed Recipe</h2>
+            {!remixed ? (
+              <p className="muted">Choose an upgrade to generate a remixed version.</p>
+            ) : (
+              <>
+                <h3 className="recipeTitle">{remixed.title}</h3>
+                <p className="muted"><strong>Why:</strong> {remixed.why}</p>
+                <ListBlock title="Ingredients" items={remixed.ingredients} />
+                <ListBlock title="Steps" items={remixed.steps} />
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div className="bottomBar">
+        <button
+          className="btnWide"
+          onClick={() => {
+            alert(
+              "Next step for iOS/TestFlight:\n\n1) Push this repo to GitHub\n2) Run: npm i\n3) Run: npm run cap:init\n4) Run: npm run cap:add:ios\n5) Run: npm run cap:sync\nThen open ios project in Xcode and upload to TestFlight.\n\n(Or automate with Codemagic.)"
+            );
+          }}
+        >
+          iOS / TestFlight Steps
+        </button>
+      </div>
+    </div>
+  );
+}
+JSX
+
+cat > src/styles.css <<'CSS'
+:root {
+  color-scheme: light;
+  --bg: #0b0b10;
+  --card: rgba(255,255,255,0.06);
+  --text: rgba(255,255,255,0.92);
+  --muted: rgba(255,255,255,0.70);
+  --border: rgba(255,255,255,0.12);
+}
+
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  margin: 0;
+  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial;
+  background: radial-gradient(1000px 800px at 50% -120px, #2a1f4a 0%, var(--bg) 55%);
+  color: var(--text);
+}
+
+.container {
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 18px;
+  padding-bottom: 96px;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 6px;
+}
+
+.brand h1 {
+  font-size: 20px;
+  margin: 0;
+  letter-spacing: 0.2px;
+}
+
+.brand p {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.pillGroup { display:flex; gap: 8px; flex-wrap: wrap; }
+.pill {
+  border: 1px solid var(--border);
+  background: rgba(255,255,255,0.08);
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 14px;
+  backdrop-filter: blur(10px);
+}
+
+.row { display:flex; gap: 12px; flex-wrap: wrap; }
+.col { flex: 1 1 360px; min-width: 320px; }
+
+.searchBox {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.searchBox input {
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: rgba(0,0,0,0.25);
+  color: var(--text);
+  outline: none;
+}
+
+.btn {
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: rgba(255,255,255,0.10);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.btn:hover { background: rgba(255,255,255,0.14); }
+.btn:active { transform: translateY(1px); }
+
+.hint {
+  margin-top: 10px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+h2 {
+  margin: 0 0 10px;
+  font-size: 16px;
+}
+
+.recipeTitle {
+  margin: 0 0 10px;
+  font-size: 15px;
+}
+
+.muted { color: var(--muted); }
+
+.list { display:flex; flex-direction: column; gap: 10px; }
+
+.listItem {
+  width: 100%;
+  text-align: left;
+  border: 1px solid var(--border);
+  background: rgba(255,255,255,0.06);
+  padding: 12px;
+  border-radius: 14px;
+  cursor: pointer;
+  color: var(--text);
+}
+
+.listItem:hover { background: rgba(255,255,255,0.10); }
+.listItem.active {
+  background: rgba(255,255,255,0.14);
+  border-color: rgba(255,255,255,0.20);
+}
+
+.listItemTitle { font-weight: 600; margin-bottom: 6px; }
+.listItemSub { font-size: 12px; line-height: 1.3; }
+
+.listItemTags { display:flex; gap: 6px; flex-wrap: wrap; }
+.tag {
+  font-size: 11px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: rgba(0,0,0,0.18);
+  color: var(--muted);
+}
+
+.block h3 { margin: 10px 0 6px; font-size: 13px; color: var(--muted); }
+.block ul { margin: 0; padding-left: 18px; }
+.block li { margin: 6px 0; }
+
+.bottomBar {
+  position: fixed;
+  left: 0; right: 0; bottom: 0;
+  padding: 12px 18px;
+  background: rgba(10,10,16,0.75);
+  border-top: 1px solid rgba(255,255,255,0.10);
+  backdrop-filter: blur(10px);
+}
+
+.btnWide {
+  width: 100%;
+  max-width: 980px;
+  margin: 0 auto;
+  display: block;
+  padding: 14px 16px;
+  border-radius: 16px;
+  border: 1px solid rgba(255,255,255,0.18);
+  background: rgba(255,255,255,0.10);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.btnWide:hover { background: rgba(255,255,255,0.14); }
+CSS
+
+# -------------------------
+# Install deps
+# -------------------------
+echo "📦 Installing packages..."
+npm install
+
+echo ""
+echo "✅ Done!"
+echo ""
+echo "Run the app:"
+echo "  npm run dev"
+echo ""
+echo "Capacitor iOS (later on a Mac or CI):"
+echo "  npm run cap:init"
+echo "  npm run cap:add:ios"
+echo "  npm run cap:sync"
