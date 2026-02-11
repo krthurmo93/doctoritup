@@ -15,12 +15,8 @@ function NativeTabLayout() {
   return (
     <NativeTabs>
       <NativeTabs.Trigger name="index">
-        <Icon sf={{ default: "book", selected: "book.fill" }} />
-        <Label>Browse</Label>
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="chat">
-        <Icon sf={{ default: "bubble.left", selected: "bubble.left.fill" }} />
-        <Label>AI Chef</Label>
+        <Icon sf={{ default: "wand.and.stars", selected: "wand.and.stars" }} />
+        <Label>Doctor It Up</Label>
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="shopping">
         <Icon sf={{ default: "cart", selected: "cart.fill" }} />
@@ -70,18 +66,9 @@ function ClassicTabLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: "Browse",
+          title: "Doctor It Up",
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="book-outline" size={size} color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="chat"
-        options={{
-          title: "AI Chef",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="chatbubble-outline" size={size} color={color} />
+            <Ionicons name="sparkles-outline" size={size} color={color} />
           ),
         }}
       />

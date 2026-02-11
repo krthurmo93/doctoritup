@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useCallback, useRef } from "react";
+import React, { useState, useCallback, useRef } from "react";
 import {
   StyleSheet,
   Text,
@@ -8,277 +8,310 @@ import {
   ScrollView,
   Platform,
   Keyboard,
+  ActivityIndicator,
+  KeyboardAvoidingView,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons, Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import Animated, { FadeInDown } from "react-native-reanimated";
+import Animated, { FadeInDown, FadeIn } from "react-native-reanimated";
 import { LinearGradient } from "expo-linear-gradient";
 import Colors from "@/constants/colors";
-import { searchRecipes, RECIPES, Recipe } from "@/lib/recipes";
 import { useShopping } from "@/lib/shopping-context";
-import {
-  getUpgradesForRecipe,
-  applyUpgrade,
-  Upgrade,
-  RemixedRecipe,
-} from "@/lib/rules";
+import { getApiUrl } from "@/lib/query-client";
 
 const C = Colors.dark;
 
-function Tag({ label }: { label: string }) {
-  return (
-    <View style={styles.tag}>
-      <Text style={styles.tagText}>{label}</Text>
-    </View>
-  );
+interface Ingredient {
+  item: string;
+  qty: number | null;
+  unit: string | null;
+  notes: string | null;
 }
 
-function SectionHeader({
-  icon,
-  title,
-  color,
-}: {
-  icon: React.ReactNode;
+interface BaseRecipe {
   title: string;
-  color: string;
-}) {
-  return (
-    <View style={styles.sectionHeader}>
-      {icon}
-      <Text style={[styles.sectionTitle, { color }]}>{title}</Text>
-    </View>
-  );
+  servings: number;
+  prep_minutes: number;
+  cook_minutes: number;
+  ingredients: Ingredient[];
+  steps: string[];
+  shopping_list: string[];
+  safety_note: string | null;
 }
 
-function RecipeResultItem({
-  recipe,
-  isSelected,
-  onPress,
-}: {
-  recipe: Recipe;
-  isSelected: boolean;
-  onPress: () => void;
-}) {
-  return (
-    <Pressable
-      onPress={onPress}
-      style={({ pressed }) => [
-        styles.resultItem,
-        isSelected && styles.resultItemActive,
-        pressed && { opacity: 0.8 },
-      ]}
-    >
-      <View style={styles.resultItemContent}>
-        <View style={styles.resultItemLeft}>
-          <View
-            style={[
-              styles.resultDot,
-              { backgroundColor: isSelected ? C.accent : C.border },
-            ]}
-          />
-          <Text
-            style={[
-              styles.resultItemTitle,
-              isSelected && { color: C.accent },
-            ]}
-          >
-            {recipe.title}
-          </Text>
-        </View>
-        <Ionicons
-          name={isSelected ? "checkmark-circle" : "chevron-forward"}
-          size={18}
-          color={isSelected ? C.accent : C.textSecondary}
-        />
-      </View>
-      <View style={styles.tagRow}>
-        {recipe.tags.slice(0, 3).map((t) => (
-          <Tag key={t} label={t} />
-        ))}
-      </View>
-    </Pressable>
-  );
+interface DoctoredRecipe {
+  title: string;
+  tagline: string;
+  why: string;
+  servings: number;
+  prep_minutes: number;
+  cook_minutes: number;
+  ingredients: Ingredient[];
+  steps: string[];
+  shopping_list: string[];
 }
 
-function UpgradeItem({
-  upgrade,
-  isSelected,
-  onPress,
-}: {
-  upgrade: Upgrade;
-  isSelected: boolean;
-  onPress: () => void;
-}) {
+interface RecipeResult {
+  base: BaseRecipe;
+  doctored: DoctoredRecipe[];
+}
+
+function formatIngredient(ing: Ingredient): string {
+  let s = "";
+  if (ing.qty != null) s += ing.qty;
+  if (ing.unit) s += (s ? " " : "") + ing.unit;
+  s += (s ? " " : "") + ing.item;
+  if (ing.notes) s += ` (${ing.notes})`;
+  return s;
+}
+
+function MetaChips({ recipe }: { recipe: BaseRecipe | DoctoredRecipe }) {
   return (
-    <Pressable
-      onPress={onPress}
-      style={({ pressed }) => [
-        styles.upgradeItem,
-        isSelected && styles.upgradeItemActive,
-        pressed && { opacity: 0.8 },
-      ]}
-    >
-      <View style={styles.upgradeItemHeader}>
-        <MaterialCommunityIcons
-          name="magic-staff"
-          size={16}
-          color={isSelected ? C.upgrade : C.textSecondary}
-        />
-        <Text
-          style={[
-            styles.upgradeItemTitle,
-            isSelected && { color: C.upgrade },
-          ]}
-          numberOfLines={2}
-        >
-          {upgrade.title}
+    <View style={styles.metaRow}>
+      <View style={styles.metaChip}>
+        <Ionicons name="people-outline" size={13} color={C.textSecondary} />
+        <Text style={styles.metaText}>{recipe.servings} servings</Text>
+      </View>
+      <View style={styles.metaChip}>
+        <Ionicons name="time-outline" size={13} color={C.textSecondary} />
+        <Text style={styles.metaText}>
+          {recipe.prep_minutes}m prep + {recipe.cook_minutes}m cook
         </Text>
       </View>
-      <Text style={styles.upgradeItemWhy} numberOfLines={2}>
-        {upgrade.why}
+    </View>
+  );
+}
+
+function IngredientsList({
+  ingredients,
+  accentColor,
+}: {
+  ingredients: Ingredient[];
+  accentColor?: string;
+}) {
+  const color = accentColor || C.textSecondary;
+  return (
+    <View style={styles.listBlock}>
+      <View style={styles.listBlockHeader}>
+        <Feather name="shopping-bag" size={14} color={color} />
+        <Text style={[styles.listBlockTitle, { color }]}>Ingredients</Text>
+      </View>
+      {ingredients.map((ing, i) => (
+        <View key={i} style={styles.listItem}>
+          <View style={[styles.bulletDot, accentColor ? { backgroundColor: accentColor } : undefined]} />
+          <Text style={styles.listItemText}>{formatIngredient(ing)}</Text>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+function StepsList({
+  steps,
+  accentColor,
+}: {
+  steps: string[];
+  accentColor?: string;
+}) {
+  const color = accentColor || C.textSecondary;
+  return (
+    <View style={styles.listBlock}>
+      <View style={styles.listBlockHeader}>
+        <Feather name="list" size={14} color={color} />
+        <Text style={[styles.listBlockTitle, { color }]}>Steps</Text>
+      </View>
+      {steps.map((step, i) => (
+        <View key={i} style={styles.stepItem}>
+          <View
+            style={[
+              styles.stepNum,
+              accentColor
+                ? { backgroundColor: accentColor + "18", borderColor: accentColor + "40" }
+                : undefined,
+            ]}
+          >
+            <Text style={[styles.stepNumText, accentColor ? { color: accentColor } : undefined]}>
+              {i + 1}
+            </Text>
+          </View>
+          <Text style={styles.listItemText}>{step}</Text>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+function AddToShoppingBtn({
+  items,
+  color,
+}: {
+  items: string[];
+  color?: string;
+}) {
+  const { addItems } = useShopping();
+  const btnColor = color || C.accent;
+  return (
+    <Pressable
+      onPress={() => {
+        if (Platform.OS !== "web") {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        }
+        addItems(items);
+      }}
+      style={({ pressed }) => [
+        styles.addShoppingBtn,
+        { borderColor: btnColor },
+        pressed && { opacity: 0.8 },
+      ]}
+    >
+      <Ionicons name="cart-outline" size={16} color={btnColor} />
+      <Text style={[styles.addShoppingText, { color: btnColor }]}>
+        Add to Shopping List
       </Text>
     </Pressable>
   );
 }
 
-function IngredientsList({ items, isRemix }: { items: string[]; isRemix?: boolean }) {
+function DoctoredCard({
+  recipe,
+  index,
+  isExpanded,
+  onPress,
+}: {
+  recipe: DoctoredRecipe;
+  index: number;
+  isExpanded: boolean;
+  onPress: () => void;
+}) {
+  const cardColors = ["#7B68EE", "#E85D75", "#4FC1A6"];
+  const color = cardColors[index % cardColors.length];
+  const shoppingItems = recipe.shopping_list?.length
+    ? recipe.shopping_list
+    : recipe.ingredients.map((i) => formatIngredient(i));
+
   return (
-    <View style={styles.listBlock}>
-      <View style={styles.listBlockHeader}>
-        <Feather
-          name="shopping-bag"
-          size={14}
-          color={isRemix ? C.success : C.textSecondary}
-        />
-        <Text
-          style={[
-            styles.listBlockTitle,
-            isRemix && { color: C.success },
-          ]}
-        >
-          Ingredients
-        </Text>
-      </View>
-      {items.map((item, i) => {
-        if (item === "") return <View key={i} style={styles.listSpacer} />;
-        const isDivider = item.startsWith("---");
-        if (isDivider) {
-          return (
-            <View key={i} style={styles.addsDivider}>
-              <View style={styles.addsDividerLine} />
-              <Text style={styles.addsDividerText}>
-                {item.replace(/---/g, "").trim()}
-              </Text>
-              <View style={styles.addsDividerLine} />
+    <Animated.View entering={FadeInDown.duration(300).delay(index * 80)}>
+      <Pressable
+        onPress={() => {
+          if (Platform.OS !== "web") {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+          }
+          onPress();
+        }}
+        style={({ pressed }) => [
+          styles.doctoredCard,
+          { borderColor: color + "30" },
+          isExpanded && { borderColor: color + "60", backgroundColor: color + "08" },
+          pressed && { opacity: 0.9 },
+        ]}
+      >
+        <View style={styles.doctoredCardHeader}>
+          <View style={[styles.doctoredDot, { backgroundColor: color }]} />
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.doctoredTitle, { color }]}>{recipe.title}</Text>
+            <View style={[styles.taglineBadge, { backgroundColor: color + "18" }]}>
+              <Text style={[styles.taglineText, { color }]}>{recipe.tagline}</Text>
             </View>
-          );
-        }
-        return (
-          <View key={i} style={styles.listItem}>
-            <View style={styles.bulletDot} />
-            <Text style={styles.listItemText}>{item}</Text>
           </View>
-        );
-      })}
-    </View>
+          <Ionicons
+            name={isExpanded ? "chevron-up" : "chevron-down"}
+            size={20}
+            color={color}
+          />
+        </View>
+
+        <Text style={styles.whyText}>{recipe.why}</Text>
+
+        {isExpanded && (
+          <Animated.View entering={FadeIn.duration(250)}>
+            <View style={[styles.expandedDivider, { backgroundColor: color + "20" }]} />
+            <MetaChips recipe={recipe} />
+            <IngredientsList ingredients={recipe.ingredients} accentColor={color} />
+            <StepsList steps={recipe.steps} accentColor={color} />
+            <AddToShoppingBtn items={shoppingItems} color={color} />
+          </Animated.View>
+        )}
+      </Pressable>
+    </Animated.View>
   );
 }
 
-function StepsList({ items, isRemix }: { items: string[]; isRemix?: boolean }) {
-  let stepNum = 0;
-  return (
-    <View style={styles.listBlock}>
-      <View style={styles.listBlockHeader}>
-        <Feather
-          name="list"
-          size={14}
-          color={isRemix ? C.success : C.textSecondary}
-        />
-        <Text
-          style={[
-            styles.listBlockTitle,
-            isRemix && { color: C.success },
-          ]}
-        >
-          Steps
-        </Text>
-      </View>
-      {items.map((item, i) => {
-        if (item === "") return <View key={i} style={styles.listSpacer} />;
-        const isDivider = item.startsWith("---");
-        if (isDivider) {
-          return (
-            <View key={i} style={styles.addsDivider}>
-              <View style={styles.addsDividerLine} />
-              <Text style={styles.addsDividerText}>
-                {item.replace(/---/g, "").trim()}
-              </Text>
-              <View style={styles.addsDividerLine} />
-            </View>
-          );
-        }
-        stepNum++;
-        return (
-          <View key={i} style={styles.stepItem}>
-            <View style={[styles.stepNum, isRemix && stepNum > 3 && { backgroundColor: C.successLight, borderColor: C.success }]}>
-              <Text style={[styles.stepNumText, isRemix && stepNum > 3 && { color: C.success }]}>{stepNum}</Text>
-            </View>
-            <Text style={styles.listItemText}>{item}</Text>
-          </View>
-        );
-      })}
-    </View>
-  );
-}
+const SUGGESTIONS = [
+  "Peach cobbler",
+  "Chicken alfredo",
+  "Mac and cheese",
+  "Banana bread",
+  "Beef tacos",
+  "Chocolate brownies",
+];
 
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
-  const { addItems } = useShopping();
-  const [query, setQuery] = useState("");
-  const [selectedRecipe, setSelectedRecipe] = useState<Recipe | null>(null);
-  const [selectedUpgrade, setSelectedUpgrade] = useState<Upgrade | null>(null);
+  const [input, setInput] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState<RecipeResult | null>(null);
+  const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const scrollRef = useRef<ScrollView>(null);
-
-  const results = useMemo(() => {
-    if (!query.trim()) return RECIPES;
-    return searchRecipes(query);
-  }, [query]);
-
-  const upgrades = useMemo(
-    () => (selectedRecipe ? getUpgradesForRecipe(selectedRecipe) : []),
-    [selectedRecipe]
-  );
-
-  const remixed: RemixedRecipe | null = useMemo(() => {
-    if (!selectedRecipe || !selectedUpgrade) return null;
-    return applyUpgrade(selectedRecipe, selectedUpgrade);
-  }, [selectedRecipe, selectedUpgrade]);
-
-  const handleSelectRecipe = useCallback(
-    (recipe: Recipe) => {
-      if (Platform.OS !== "web") {
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      }
-      setSelectedRecipe(recipe);
-      setSelectedUpgrade(null);
-      Keyboard.dismiss();
-    },
-    []
-  );
-
-  const handleSelectUpgrade = useCallback(
-    (upgrade: Upgrade) => {
-      if (Platform.OS !== "web") {
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      }
-      setSelectedUpgrade(upgrade);
-    },
-    []
-  );
 
   const webTopInset = Platform.OS === "web" ? 67 : 0;
   const webBottomInset = Platform.OS === "web" ? 34 : 0;
+
+  const generateRecipe = useCallback(
+    async (query?: string) => {
+      const msg = (query || input).trim();
+      if (!msg || loading) return;
+
+      Keyboard.dismiss();
+      if (Platform.OS !== "web") {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      }
+
+      setLoading(true);
+      setResult(null);
+      setError(null);
+      setExpandedIndex(null);
+
+      try {
+        const baseUrl = getApiUrl();
+        const url = new URL("/api/recipe-chat", baseUrl);
+        const res = await fetch(url.toString(), {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ message: msg, preferences: {} }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data?.error || "Generation failed");
+
+        setResult(data as RecipeResult);
+
+        if (Platform.OS !== "web") {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        }
+        setTimeout(() => scrollRef.current?.scrollTo({ y: 300, animated: true }), 400);
+      } catch (e: any) {
+        setError(e.message || "Something went wrong. Try again.");
+      } finally {
+        setLoading(false);
+      }
+    },
+    [input, loading]
+  );
+
+  const handleSuggestion = useCallback(
+    (text: string) => {
+      setInput(text);
+      generateRecipe(text);
+    },
+    [generateRecipe]
+  );
+
+  const baseShoppingItems = result?.base
+    ? result.base.shopping_list?.length
+      ? result.base.shopping_list
+      : result.base.ingredients.map((i) => formatIngredient(i))
+    : [];
 
   return (
     <View style={styles.container}>
@@ -288,216 +321,177 @@ export default function HomeScreen() {
         style={StyleSheet.absoluteFill}
       />
 
-      <ScrollView
-        ref={scrollRef}
-        style={styles.scroll}
-        contentContainerStyle={[
-          styles.scrollContent,
-          {
-            paddingTop: insets.top + webTopInset + 16,
-            paddingBottom: insets.bottom + webBottomInset + 24,
-          },
-        ]}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
       >
-        <View style={styles.header}>
-          <View style={styles.headerIcon}>
-            <MaterialCommunityIcons name="chef-hat" size={28} color={C.accent} />
-          </View>
-          <View>
-            <Text style={styles.headerTitle}>Doctor It Up</Text>
-            <Text style={styles.headerSubtitle}>
-              Upgrade everyday recipes into something special
-            </Text>
-          </View>
-        </View>
-
-        <View style={styles.searchCard}>
-          <View style={styles.searchRow}>
-            <View style={styles.searchInputWrap}>
-              <Ionicons
-                name="search"
-                size={18}
-                color={C.textSecondary}
-                style={{ marginLeft: 14 }}
-              />
-              <TextInput
-                value={query}
-                onChangeText={setQuery}
-                placeholder="Search recipes..."
-                placeholderTextColor={C.textSecondary}
-                style={styles.searchInput}
-                returnKeyType="search"
-              />
-              {query.length > 0 && (
-                <Pressable
-                  onPress={() => setQuery("")}
-                  style={styles.clearBtn}
-                  hitSlop={8}
-                >
-                  <Ionicons name="close-circle" size={18} color={C.textSecondary} />
-                </Pressable>
-              )}
+        <ScrollView
+          ref={scrollRef}
+          style={styles.scroll}
+          contentContainerStyle={[
+            styles.scrollContent,
+            {
+              paddingTop: insets.top + webTopInset + 16,
+              paddingBottom: insets.bottom + webBottomInset + 100,
+            },
+          ]}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.header}>
+            <View style={styles.headerIcon}>
+              <MaterialCommunityIcons name="chef-hat" size={28} color={C.accent} />
+            </View>
+            <View>
+              <Text style={styles.headerTitle}>Doctor It Up</Text>
+              <Text style={styles.headerSubtitle}>
+                Tell me what to cook, I'll make it better
+              </Text>
             </View>
           </View>
-          <View style={styles.quickTags}>
-            {["cake", "brownies", "ramen"].map((q) => (
+
+          <View style={styles.inputCard}>
+            <View style={styles.inputRow}>
+              <TextInput
+                value={input}
+                onChangeText={setInput}
+                placeholder="What do you want to cook?"
+                placeholderTextColor={C.textSecondary}
+                style={styles.textInput}
+                returnKeyType="send"
+                onSubmitEditing={() => generateRecipe()}
+                blurOnSubmit
+                editable={!loading}
+              />
               <Pressable
-                key={q}
-                onPress={() => setQuery(q)}
+                onPress={() => generateRecipe()}
+                disabled={loading || !input.trim()}
                 style={({ pressed }) => [
-                  styles.quickTag,
-                  query.toLowerCase() === q && styles.quickTagActive,
+                  styles.sendBtn,
+                  (!input.trim() || loading) && { opacity: 0.4 },
                   pressed && { opacity: 0.7 },
                 ]}
               >
-                <Text
-                  style={[
-                    styles.quickTagText,
-                    query.toLowerCase() === q && styles.quickTagTextActive,
-                  ]}
-                >
-                  {q}
-                </Text>
-              </Pressable>
-            ))}
-          </View>
-        </View>
-
-        <View style={styles.section}>
-          <SectionHeader
-            icon={
-              <Feather name="book-open" size={16} color={C.textSecondary} />
-            }
-            title="Recipes"
-            color={C.text}
-          />
-          {results.length === 0 ? (
-            <View style={styles.emptyState}>
-              <Ionicons name="search-outline" size={32} color={C.textSecondary} />
-              <Text style={styles.emptyText}>
-                No recipes found. Try "cake", "brownies", or "ramen".
-              </Text>
-            </View>
-          ) : (
-            results.map((r) => (
-              <RecipeResultItem
-                key={r.id}
-                recipe={r}
-                isSelected={selectedRecipe?.id === r.id}
-                onPress={() => handleSelectRecipe(r)}
-              />
-            ))
-          )}
-        </View>
-
-        {selectedRecipe && (
-          <Animated.View entering={FadeInDown.duration(300)} style={styles.section}>
-            <SectionHeader
-              icon={
-                <MaterialCommunityIcons
-                  name="food-variant"
-                  size={18}
-                  color={C.textSecondary}
-                />
-              }
-              title="Base Recipe"
-              color={C.text}
-            />
-            <View style={styles.recipeCard}>
-              <Text style={styles.recipeCardTitle}>
-                {selectedRecipe.title}
-              </Text>
-              <IngredientsList items={selectedRecipe.ingredients} />
-              <StepsList items={selectedRecipe.steps} />
-              <Pressable
-                onPress={() => {
-                  if (Platform.OS !== "web") {
-                    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                  }
-                  addItems(selectedRecipe.ingredients);
-                }}
-                style={({ pressed }) => [
-                  styles.addShoppingBtn,
-                  pressed && { opacity: 0.8 },
-                ]}
-              >
-                <Ionicons name="cart-outline" size={16} color={C.accent} />
-                <Text style={styles.addShoppingText}>Add to Shopping List</Text>
+                {loading ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <Ionicons name="sparkles" size={18} color="#fff" />
+                )}
               </Pressable>
             </View>
-          </Animated.View>
-        )}
 
-        {selectedRecipe && upgrades.length > 0 && (
-          <Animated.View entering={FadeInDown.duration(300).delay(100)} style={styles.section}>
-            <SectionHeader
-              icon={
-                <MaterialCommunityIcons
-                  name="magic-staff"
-                  size={18}
-                  color={C.upgrade}
-                />
-              }
-              title="Doctor It Up"
-              color={C.upgrade}
-            />
-            <Text style={styles.upgradeSub}>
-              Choose an upgrade to remix this recipe
-            </Text>
-            {upgrades.map((u) => (
-              <UpgradeItem
-                key={u.id}
-                upgrade={u}
-                isSelected={selectedUpgrade?.id === u.id}
-                onPress={() => handleSelectUpgrade(u)}
-              />
-            ))}
-          </Animated.View>
-        )}
-
-        {remixed && (
-          <Animated.View entering={FadeInDown.duration(300)} style={styles.section}>
-            <SectionHeader
-              icon={
-                <Ionicons name="sparkles" size={18} color={C.success} />
-              }
-              title="Remixed Recipe"
-              color={C.success}
-            />
-            <View style={[styles.recipeCard, styles.remixCard]}>
-              <Text style={[styles.recipeCardTitle, { color: C.success }]}>
-                {remixed.title}
-              </Text>
-              <View style={styles.whyBadge}>
-                <Ionicons name="bulb-outline" size={14} color={C.accent} />
-                <Text style={styles.whyText}>{remixed.why}</Text>
+            {!result && !loading && (
+              <View style={styles.suggestionsWrap}>
+                <Text style={styles.suggestLabel}>Try something:</Text>
+                <View style={styles.suggestions}>
+                  {SUGGESTIONS.map((s) => (
+                    <Pressable
+                      key={s}
+                      onPress={() => handleSuggestion(s)}
+                      style={({ pressed }) => [
+                        styles.suggestionChip,
+                        pressed && { opacity: 0.7 },
+                      ]}
+                    >
+                      <Text style={styles.suggestionText}>{s}</Text>
+                    </Pressable>
+                  ))}
+                </View>
               </View>
-              <IngredientsList items={remixed.ingredients} isRemix />
-              <StepsList items={remixed.steps} isRemix />
-              <Pressable
-                onPress={() => {
-                  if (Platform.OS !== "web") {
-                    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                  }
-                  addItems(remixed.ingredients.filter((x) => x && !x.startsWith("---")));
-                }}
-                style={({ pressed }) => [
-                  styles.addShoppingBtn,
-                  { borderColor: C.success },
-                  pressed && { opacity: 0.8 },
-                ]}
+            )}
+          </View>
+
+          {loading && (
+            <Animated.View entering={FadeIn.duration(300)} style={styles.loadingCard}>
+              <ActivityIndicator size="small" color={C.accent} />
+              <Text style={styles.loadingText}>
+                Cooking up your recipe and 3 doctored-up versions...
+              </Text>
+            </Animated.View>
+          )}
+
+          {error && (
+            <Animated.View entering={FadeInDown.duration(300)} style={styles.errorCard}>
+              <Ionicons name="alert-circle" size={18} color="#E85D75" />
+              <Text style={styles.errorText}>{error}</Text>
+            </Animated.View>
+          )}
+
+          {result && (
+            <>
+              <Animated.View entering={FadeInDown.duration(300)} style={styles.section}>
+                <View style={styles.sectionHeader}>
+                  <MaterialCommunityIcons name="food-variant" size={18} color={C.accent} />
+                  <Text style={[styles.sectionTitle, { color: C.accent }]}>
+                    Base Recipe
+                  </Text>
+                </View>
+
+                <View style={styles.baseCard}>
+                  <Text style={styles.baseTitle}>{result.base.title}</Text>
+                  <MetaChips recipe={result.base} />
+
+                  {result.base.safety_note && (
+                    <View style={styles.safetyBadge}>
+                      <Ionicons name="warning-outline" size={14} color="#FFB347" />
+                      <Text style={styles.safetyText}>{result.base.safety_note}</Text>
+                    </View>
+                  )}
+
+                  <IngredientsList ingredients={result.base.ingredients} />
+                  <StepsList steps={result.base.steps} />
+                  <AddToShoppingBtn items={baseShoppingItems} />
+                </View>
+              </Animated.View>
+
+              <Animated.View
+                entering={FadeInDown.duration(300).delay(150)}
+                style={styles.section}
               >
-                <Ionicons name="cart-outline" size={16} color={C.success} />
-                <Text style={[styles.addShoppingText, { color: C.success }]}>
-                  Add to Shopping List
+                <View style={styles.sectionHeader}>
+                  <MaterialCommunityIcons name="magic-staff" size={18} color={C.upgrade} />
+                  <Text style={[styles.sectionTitle, { color: C.upgrade }]}>
+                    Doctor It Up
+                  </Text>
+                </View>
+                <Text style={styles.doctoredSubtitle}>
+                  3 creative twists — each is a complete recipe
                 </Text>
-              </Pressable>
+
+                {result.doctored.map((d, i) => (
+                  <DoctoredCard
+                    key={i}
+                    recipe={d}
+                    index={i}
+                    isExpanded={expandedIndex === i}
+                    onPress={() =>
+                      setExpandedIndex(expandedIndex === i ? null : i)
+                    }
+                  />
+                ))}
+              </Animated.View>
+            </>
+          )}
+
+          {!result && !loading && !error && (
+            <View style={styles.emptyHero}>
+              <MaterialCommunityIcons
+                name="silverware-fork-knife"
+                size={56}
+                color={C.textSecondary}
+                style={{ opacity: 0.4 }}
+              />
+              <Text style={styles.emptyTitle}>
+                Describe any dish and get the recipe
+              </Text>
+              <Text style={styles.emptySubtitle}>
+                Plus 3 creative "doctored up" versions with ingredient swaps, shortcuts, and flavor upgrades
+              </Text>
             </View>
-          </Animated.View>
-        )}
-      </ScrollView>
+          )}
+        </ScrollView>
+      </KeyboardAvoidingView>
     </View>
   );
 }
@@ -538,63 +532,101 @@ const styles = StyleSheet.create({
     color: C.textSecondary,
     marginTop: 2,
   },
-  searchCard: {
+  inputCard: {
     backgroundColor: C.card,
-    borderRadius: 18,
+    borderRadius: 20,
     borderWidth: 1,
     borderColor: C.border,
     padding: 14,
     marginBottom: 24,
   },
-  searchRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-  },
-  searchInputWrap: {
-    flex: 1,
+  inputRow: {
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: C.inputBackground,
-    borderRadius: 14,
+    borderRadius: 16,
     borderWidth: 1,
     borderColor: C.border,
+    paddingLeft: 14,
+    paddingRight: 6,
+    paddingVertical: 4,
   },
-  searchInput: {
+  textInput: {
     flex: 1,
-    paddingVertical: 12,
-    paddingHorizontal: 10,
     fontSize: 15,
     fontFamily: "Outfit_400Regular",
     color: C.text,
+    paddingVertical: 10,
   },
-  clearBtn: {
-    paddingRight: 12,
+  sendBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: C.accent,
+    alignItems: "center",
+    justifyContent: "center",
   },
-  quickTags: {
+  suggestionsWrap: {
+    marginTop: 14,
+  },
+  suggestLabel: {
+    fontSize: 12,
+    fontFamily: "Outfit_500Medium",
+    color: C.textSecondary,
+    marginBottom: 8,
+  },
+  suggestions: {
     flexDirection: "row",
+    flexWrap: "wrap",
     gap: 8,
-    marginTop: 12,
   },
-  quickTag: {
+  suggestionChip: {
     paddingHorizontal: 14,
-    paddingVertical: 7,
+    paddingVertical: 8,
     borderRadius: 20,
     backgroundColor: C.tag,
     borderWidth: 1,
     borderColor: C.tagBorder,
   },
-  quickTagActive: {
-    backgroundColor: C.accentLight,
-    borderColor: C.accent,
-  },
-  quickTagText: {
+  suggestionText: {
     fontSize: 13,
     fontFamily: "Outfit_500Medium",
-    color: C.textSecondary,
+    color: C.text,
   },
-  quickTagTextActive: {
-    color: C.accent,
+  loadingCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    backgroundColor: C.card,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: C.border,
+    padding: 18,
+    marginBottom: 24,
+  },
+  loadingText: {
+    fontSize: 14,
+    fontFamily: "Outfit_400Regular",
+    color: C.textSecondary,
+    flex: 1,
+  },
+  errorCard: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+    backgroundColor: "rgba(232,93,117,0.08)",
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "rgba(232,93,117,0.2)",
+    padding: 14,
+    marginBottom: 24,
+  },
+  errorText: {
+    fontSize: 14,
+    fontFamily: "Outfit_400Regular",
+    color: "#E85D75",
+    flex: 1,
+    lineHeight: 20,
   },
   section: {
     marginBottom: 24,
@@ -606,143 +638,52 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   sectionTitle: {
-    fontSize: 16,
-    fontFamily: "Outfit_600SemiBold",
+    fontSize: 17,
+    fontFamily: "Outfit_700Bold",
   },
-  emptyState: {
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 32,
-    gap: 10,
-  },
-  emptyText: {
-    fontSize: 14,
-    fontFamily: "Outfit_400Regular",
-    color: C.textSecondary,
-    textAlign: "center",
-  },
-  resultItem: {
-    backgroundColor: C.card,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: C.border,
-    padding: 14,
-    marginBottom: 10,
-  },
-  resultItemActive: {
-    backgroundColor: C.accentDim,
-    borderColor: "rgba(232,148,90,0.25)",
-  },
-  resultItemContent: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  resultItemLeft: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    flex: 1,
-  },
-  resultDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-  },
-  resultItemTitle: {
-    fontSize: 15,
-    fontFamily: "Outfit_600SemiBold",
-    color: C.text,
-    flex: 1,
-  },
-  tagRow: {
-    flexDirection: "row",
-    gap: 6,
-    marginTop: 10,
-    flexWrap: "wrap",
-  },
-  tag: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 20,
-    backgroundColor: C.tag,
-    borderWidth: 1,
-    borderColor: C.tagBorder,
-  },
-  tagText: {
-    fontSize: 11,
-    fontFamily: "Outfit_400Regular",
-    color: C.textSecondary,
-  },
-  recipeCard: {
+  baseCard: {
     backgroundColor: C.card,
     borderRadius: 18,
     borderWidth: 1,
     borderColor: C.border,
     padding: 16,
   },
-  remixCard: {
-    borderColor: "rgba(107,203,119,0.2)",
-    backgroundColor: "rgba(107,203,119,0.04)",
-  },
-  recipeCardTitle: {
-    fontSize: 17,
+  baseTitle: {
+    fontSize: 18,
     fontFamily: "Outfit_700Bold",
     color: C.text,
-    marginBottom: 14,
-  },
-  whyBadge: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 8,
-    backgroundColor: C.accentDim,
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 14,
-  },
-  whyText: {
-    fontSize: 13,
-    fontFamily: "Outfit_400Regular",
-    color: C.accent,
-    flex: 1,
-    lineHeight: 18,
-  },
-  upgradeSub: {
-    fontSize: 13,
-    fontFamily: "Outfit_400Regular",
-    color: C.textSecondary,
-    marginBottom: 12,
-    marginTop: -4,
-  },
-  upgradeItem: {
-    backgroundColor: C.card,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: C.border,
-    padding: 14,
     marginBottom: 10,
   },
-  upgradeItemActive: {
-    backgroundColor: C.upgradeLight,
-    borderColor: "rgba(123,104,238,0.3)",
+  metaRow: {
+    flexDirection: "row",
+    gap: 12,
+    flexWrap: "wrap",
+    marginBottom: 12,
   },
-  upgradeItemHeader: {
+  metaChip: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
-    marginBottom: 6,
+    gap: 4,
   },
-  upgradeItemTitle: {
-    fontSize: 14,
-    fontFamily: "Outfit_600SemiBold",
-    color: C.text,
-    flex: 1,
-  },
-  upgradeItemWhy: {
+  metaText: {
     fontSize: 12,
     fontFamily: "Outfit_400Regular",
     color: C.textSecondary,
-    marginLeft: 24,
+  },
+  safetyBadge: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+    backgroundColor: "rgba(255,179,71,0.1)",
+    borderRadius: 12,
+    padding: 10,
+    marginBottom: 12,
+  },
+  safetyText: {
+    fontSize: 12,
+    fontFamily: "Outfit_400Regular",
+    color: "#FFB347",
+    flex: 1,
     lineHeight: 17,
   },
   listBlock: {
@@ -756,36 +697,17 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   listBlockTitle: {
-    fontSize: 13,
+    fontSize: 12,
     fontFamily: "Outfit_600SemiBold",
     color: C.textSecondary,
     textTransform: "uppercase" as const,
     letterSpacing: 0.5,
   },
-  listSpacer: {
-    height: 4,
-  },
-  addsDivider: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    marginVertical: 8,
-  },
-  addsDividerLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: C.divider,
-  },
-  addsDividerText: {
-    fontSize: 11,
-    fontFamily: "Outfit_500Medium",
-    color: C.accent,
-  },
   listItem: {
     flexDirection: "row",
     alignItems: "flex-start",
     gap: 10,
-    paddingVertical: 4,
+    paddingVertical: 3,
   },
   bulletDot: {
     width: 5,
@@ -808,35 +730,106 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
   },
   stepNum: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    backgroundColor: C.card,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: C.accentDim,
     borderWidth: 1,
-    borderColor: C.border,
+    borderColor: "rgba(232,148,90,0.25)",
     alignItems: "center",
     justifyContent: "center",
-    marginTop: 0,
   },
   stepNumText: {
     fontSize: 11,
     fontFamily: "Outfit_600SemiBold",
-    color: C.textSecondary,
+    color: C.accent,
   },
   addShoppingBtn: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: 6,
-    paddingVertical: 10,
+    paddingVertical: 11,
     borderRadius: 12,
     borderWidth: 1,
     borderColor: C.accent,
-    marginTop: 12,
+    marginTop: 6,
   },
   addShoppingText: {
     fontSize: 13,
     fontFamily: "Outfit_600SemiBold",
     color: C.accent,
+  },
+  doctoredSubtitle: {
+    fontSize: 13,
+    fontFamily: "Outfit_400Regular",
+    color: C.textSecondary,
+    marginBottom: 14,
+    marginTop: -4,
+  },
+  doctoredCard: {
+    backgroundColor: C.card,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: C.border,
+    padding: 16,
+    marginBottom: 12,
+  },
+  doctoredCardHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 12,
+  },
+  doctoredDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    marginTop: 5,
+  },
+  doctoredTitle: {
+    fontSize: 16,
+    fontFamily: "Outfit_700Bold",
+    marginBottom: 6,
+  },
+  taglineBadge: {
+    alignSelf: "flex-start",
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  taglineText: {
+    fontSize: 12,
+    fontFamily: "Outfit_600SemiBold",
+  },
+  whyText: {
+    fontSize: 13,
+    fontFamily: "Outfit_400Regular",
+    color: C.textSecondary,
+    lineHeight: 19,
+    marginTop: 10,
+  },
+  expandedDivider: {
+    height: 1,
+    marginVertical: 14,
+  },
+  emptyHero: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 60,
+    gap: 12,
+  },
+  emptyTitle: {
+    fontSize: 17,
+    fontFamily: "Outfit_600SemiBold",
+    color: C.text,
+    textAlign: "center",
+  },
+  emptySubtitle: {
+    fontSize: 14,
+    fontFamily: "Outfit_400Regular",
+    color: C.textSecondary,
+    textAlign: "center",
+    lineHeight: 20,
+    paddingHorizontal: 20,
   },
 });
