@@ -2,11 +2,10 @@
 
 ## Overview
 
-Doctor It Up is a recipe enhancement mobile app built with Expo (React Native) and an Express backend. The core concept is helping users "doctor up" basic recipes (like box cake mix, instant ramen, boxed brownies) with upgrades that make them taste better. The app has three main features:
+Doctor It Up is a recipe enhancement mobile app built with Expo (React Native) and an Express backend. The core concept is helping users "doctor up" any recipe with creative ingredient swaps, shortcuts, and flavor upgrades. The app has two main features:
 
-1. **Browse** — Search and explore a local catalog of base recipes with suggested upgrades users can apply
-2. **AI Chef** — A chat interface powered by OpenAI that generates custom recipes with "doctor it up" suggestions
-3. **Shopping List** — A persistent shopping list where users can add ingredients from recipes and check them off
+1. **Doctor It Up** (main tab) — Users describe what they want to cook, AI generates a base recipe PLUS 3 complete "doctored up" alternative versions. Each doctored version is a full recipe with its own ingredients and steps (e.g., using pancake mix instead of scratch batter, slow cooker method, brown butter upgrade). Users can expand any version to see the full recipe and add ingredients to their shopping list.
+2. **Shopping List** — A persistent shopping list where users can add ingredients from any recipe version and check them off
 
 The app targets mobile (iOS/Android) via Expo and also supports web.
 
@@ -19,7 +18,7 @@ Preferred communication style: Simple, everyday language.
 ### Frontend (Expo / React Native)
 
 - **Framework**: Expo SDK 54 with expo-router for file-based routing
-- **Navigation**: Tab-based layout with three tabs: Browse, AI Chef, Shopping (defined in `app/(tabs)/`)
+- **Navigation**: Tab-based layout with two tabs: Doctor It Up, Shopping (defined in `app/(tabs)/`)
 - **Styling**: Dark theme throughout using a centralized color constants file (`constants/colors.ts`), StyleSheet-based styling
 - **State Management**: React Context for shopping list (`lib/shopping-context.tsx`), TanStack React Query for server state (`lib/query-client.ts`)
 - **Persistence**: AsyncStorage for the shopping list (local-first, no server round-trip needed)
@@ -30,7 +29,7 @@ Preferred communication style: Simple, everyday language.
 
 - **Runtime**: Node.js with Express 5, written in TypeScript (compiled with tsx for dev, esbuild for production)
 - **API Pattern**: JSON REST API served from `/api/*` routes
-- **Main Endpoint**: `POST /api/recipe-chat` — Sends user message + preferences to OpenAI and returns a structured JSON recipe response
+- **Main Endpoint**: `POST /api/recipe-chat` — Sends user message + preferences to OpenAI and returns a structured JSON response with a base recipe and 3 complete "doctored up" alternative versions (each with full ingredients, steps, tagline, and why explanation)
 - **AI Integration**: OpenAI API via Replit AI Integrations (uses `AI_INTEGRATIONS_OPENAI_API_KEY` and `AI_INTEGRATIONS_OPENAI_BASE_URL` environment variables)
 - **CORS**: Dynamic origin allowlist based on Replit environment variables, plus localhost support for Expo web dev
 - **Static Serving**: In production, serves pre-built Expo web bundle from `dist/` directory
