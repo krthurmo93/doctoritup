@@ -11,7 +11,7 @@ workflows:
       vars:
         EXPO_PUBLIC_DOMAIN: "doctoritup"
       node: v18
-      xcode: 15.4
+      xcode: 16.2
       cocoapods: default
     scripts:
       - name: Install dependencies
