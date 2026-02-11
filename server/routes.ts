@@ -99,7 +99,7 @@ Preferences (optional): ${JSON.stringify(preferences)}
       `.trim();
 
       const response = await openai.chat.completions.create({
-        model: "gpt-5.2",
+        model: "gpt-4o-mini",
         messages: [
           { role: "system", content: system },
           { role: "user", content: user },
@@ -213,7 +213,7 @@ Generate 2-4 side dishes in the "sides" array.
       const user = `I have: ${message}`.trim();
 
       const response = await openai.chat.completions.create({
-        model: "gpt-5.2",
+        model: "gpt-4o-mini",
         messages: [
           { role: "system", content: system },
           { role: "user", content: user },
