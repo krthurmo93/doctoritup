@@ -12,17 +12,11 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons, Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import Animated, {
-  FadeIn,
-  FadeInDown,
-  useAnimatedStyle,
-  useSharedValue,
-  withSpring,
-  withTiming,
-} from "react-native-reanimated";
+import Animated, { FadeInDown } from "react-native-reanimated";
 import { LinearGradient } from "expo-linear-gradient";
 import Colors from "@/constants/colors";
 import { searchRecipes, RECIPES, Recipe } from "@/lib/recipes";
+import { useShopping } from "@/lib/shopping-context";
 import {
   getUpgradesForRecipe,
   applyUpgrade,
@@ -240,6 +234,7 @@ function StepsList({ items, isRemix }: { items: string[]; isRemix?: boolean }) {
 
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
+  const { addItems } = useShopping();
   const [query, setQuery] = useState("");
   const [selectedRecipe, setSelectedRecipe] = useState<Recipe | null>(null);
   const [selectedUpgrade, setSelectedUpgrade] = useState<Upgrade | null>(null);
@@ -416,6 +411,21 @@ export default function HomeScreen() {
               </Text>
               <IngredientsList items={selectedRecipe.ingredients} />
               <StepsList items={selectedRecipe.steps} />
+              <Pressable
+                onPress={() => {
+                  if (Platform.OS !== "web") {
+                    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                  }
+                  addItems(selectedRecipe.ingredients);
+                }}
+                style={({ pressed }) => [
+                  styles.addShoppingBtn,
+                  pressed && { opacity: 0.8 },
+                ]}
+              >
+                <Ionicons name="cart-outline" size={16} color={C.accent} />
+                <Text style={styles.addShoppingText}>Add to Shopping List</Text>
+              </Pressable>
             </View>
           </Animated.View>
         )}
@@ -466,6 +476,24 @@ export default function HomeScreen() {
               </View>
               <IngredientsList items={remixed.ingredients} isRemix />
               <StepsList items={remixed.steps} isRemix />
+              <Pressable
+                onPress={() => {
+                  if (Platform.OS !== "web") {
+                    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                  }
+                  addItems(remixed.ingredients.filter((x) => x && !x.startsWith("---")));
+                }}
+                style={({ pressed }) => [
+                  styles.addShoppingBtn,
+                  { borderColor: C.success },
+                  pressed && { opacity: 0.8 },
+                ]}
+              >
+                <Ionicons name="cart-outline" size={16} color={C.success} />
+                <Text style={[styles.addShoppingText, { color: C.success }]}>
+                  Add to Shopping List
+                </Text>
+              </Pressable>
             </View>
           </Animated.View>
         )}
@@ -794,5 +822,21 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontFamily: "Outfit_600SemiBold",
     color: C.textSecondary,
+  },
+  addShoppingBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: C.accent,
+    marginTop: 12,
+  },
+  addShoppingText: {
+    fontSize: 13,
+    fontFamily: "Outfit_600SemiBold",
+    color: C.accent,
   },
 });
