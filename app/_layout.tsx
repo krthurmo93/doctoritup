@@ -7,6 +7,7 @@ import { KeyboardProvider } from "react-native-keyboard-controller";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { queryClient } from "@/lib/query-client";
 import { ShoppingProvider } from "@/lib/shopping-context";
+import { SavedRecipesProvider } from "@/lib/saved-recipes-context";
 import {
   useFonts,
   Outfit_400Regular,
@@ -46,12 +47,14 @@ export default function RootLayout() {
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>
         <ShoppingProvider>
-          <GestureHandlerRootView>
-            <KeyboardProvider>
-              <StatusBar style="light" />
-              <RootLayoutNav />
-            </KeyboardProvider>
-          </GestureHandlerRootView>
+          <SavedRecipesProvider>
+            <GestureHandlerRootView>
+              <KeyboardProvider>
+                <StatusBar style="light" />
+                <RootLayoutNav />
+              </KeyboardProvider>
+            </GestureHandlerRootView>
+          </SavedRecipesProvider>
         </ShoppingProvider>
       </QueryClientProvider>
     </ErrorBoundary>

@@ -7,11 +7,13 @@ import { Platform, StyleSheet, View } from "react-native";
 import React from "react";
 import Colors from "@/constants/colors";
 import { useShopping } from "@/lib/shopping-context";
+import { useSavedRecipes } from "@/lib/saved-recipes-context";
 
 const C = Colors.dark;
 
 function NativeTabLayout() {
   const { totalCount } = useShopping();
+  const { totalSaved } = useSavedRecipes();
   return (
     <NativeTabs>
       <NativeTabs.Trigger name="index">
@@ -21,6 +23,11 @@ function NativeTabLayout() {
       <NativeTabs.Trigger name="chef">
         <Icon sf={{ default: "flame", selected: "flame.fill" }} />
         <Label>AI Chef</Label>
+      </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="saved">
+        <Icon sf={{ default: "bookmark", selected: "bookmark.fill" }} />
+        <Label>Saved</Label>
+        {totalSaved > 0 && <Badge>{String(totalSaved)}</Badge>}
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="shopping">
         <Icon sf={{ default: "cart", selected: "cart.fill" }} />
@@ -33,6 +40,7 @@ function NativeTabLayout() {
 
 function ClassicTabLayout() {
   const { totalCount } = useShopping();
+  const { totalSaved } = useSavedRecipes();
   const isWeb = Platform.OS === "web";
   const isIOS = Platform.OS === "ios";
 
@@ -82,6 +90,16 @@ function ClassicTabLayout() {
           title: "AI Chef",
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="flame-outline" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="saved"
+        options={{
+          title: "Saved",
+          tabBarBadge: totalSaved > 0 ? totalSaved : undefined,
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="bookmark-outline" size={size} color={color} />
           ),
         }}
       />
