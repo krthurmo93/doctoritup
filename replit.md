@@ -17,13 +17,23 @@ The app targets mobile (iOS/Android) via Expo and also supports web.
 Preferred communication style: Simple, everyday language.
 
 ### Cooking Style Defaults
-- Default to Southern home-style cooking inspired by a skilled grandmother
+- Default to Southern home-style cooking with bold, generous seasoning — garlic powder, onion powder, seasoned salt, paprika, cayenne, black pepper as baseline
+- Seasoning in layers is non-negotiable — season the meat, season the sauce, taste and adjust
+- Pantry staples: Lawry's, Tony Chachere's, Adobo, Old Bay for seafood
+- When a specific cuisine is requested (Nigerian, French, Thai, etc.), the BASE recipe must be authentic to that cuisine using traditional ingredients/techniques
+- The 3 alternative/upgrade versions can add creative twists or Southern-influenced spins
 - Prioritize flavor, comfort, and practical techniques
 - Use familiar, affordable ingredients — nothing fancy or hard to find
 - Avoid chef jargon — write instructions like you're talking to a neighbor
 - Always recommend 2-4 complementary side dishes that balance the meal
 - Each side explains why it works and gives a simple preparation method
 - Sides should feel realistic for a home cook, not restaurant-level
+
+### App Store Configuration
+- Bundle ID: com.owlkimmy.doctoritup
+- Scheme: doctoritup
+- Dark theme throughout (splash screen matches #0B0B10)
+- Custom app icon: warm orange spoon with sparkles on dark background
 
 ## System Architecture
 
