@@ -2,11 +2,12 @@
 
 ## Overview
 
-Doctor It Up is a recipe enhancement mobile app built with Expo (React Native) and an Express backend. The app has three tabs:
+Doctor It Up is a recipe enhancement mobile app built with Expo (React Native) and an Express backend. The app has four tabs:
 
 1. **Doctor It Up** (main tab) — Users enter a pre-made/boxed item they already have (box cake mix, instant ramen, frozen pizza, etc.) and get 3 creative upgrade suggestions with extra ingredients and modified steps to make it taste homemade.
 2. **AI Chef** — Users describe what they want to cook from scratch, AI generates a base recipe plus 3 complete alternative versions with different techniques, ingredient swaps, and shortcuts.
-3. **Shopping List** — A persistent shopping list where users can add ingredients from any recipe or side dish and check them off.
+3. **Saved** — Locally saved/bookmarked recipes from both tabs, stored on-device via AsyncStorage (no login required). Users can expand, view full details, add ingredients to shopping list, or remove saved recipes.
+4. **Shopping List** — A persistent shopping list where users can add ingredients from any recipe or side dish and check them off.
 
 Both recipe tabs also recommend 2-4 complementary side dishes that balance the meal, with brief explanations of why each works and simple preparation methods.
 
