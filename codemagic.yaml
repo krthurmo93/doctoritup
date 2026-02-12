@@ -29,18 +29,26 @@ workflows:
           cd ios && pod install
       - name: Bundle JavaScript with Expo
         script: |
+          set -e
+          
+          APP_DIR=$(find ios -name "*.xcodeproj" -maxdepth 1 | head -1 | sed 's/.xcodeproj//')
+          echo "App directory: $APP_DIR"
+          
+          mkdir -p "$APP_DIR"
+          
           npx expo export:embed \
             --platform ios \
             --dev false \
             --entry-file index.js \
-            --bundle-output ios/main.jsbundle \
-            --assets-dest ios
+            --bundle-output "$APP_DIR/main.jsbundle" \
+            --assets-dest "$APP_DIR"
           
           echo "Bundle created:"
-          ls -la ios/main.jsbundle
+          ls -la "$APP_DIR/main.jsbundle"
+          echo "Bundle size: $(wc -c < "$APP_DIR/main.jsbundle") bytes"
       - name: Skip Xcode bundling
         script: |
-          echo "export SKIP_BUNDLING=1" > ios/.xcode.env.local
+          echo 'export SKIP_BUNDLING=1' >> ios/.xcode.env.local
           cat ios/.xcode.env.local
       - name: Set up code signing
         script: |
