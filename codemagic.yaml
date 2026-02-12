@@ -26,10 +26,10 @@ workflows:
       - name: Set up code signing
         script: |
           openssl req -nodes -newkey rsa:2048 -keyout /tmp/cert_key.pem -out /tmp/cert_csr.pem -subj "/CN=Doctor It Up/O=Kimberly Thurmond/C=US"
+          export CERTIFICATE_PRIVATE_KEY=$(cat /tmp/cert_key.pem)
           app-store-connect fetch-signing-files "Com.owlkimmy.doctoritup" \
             --type IOS_APP_STORE \
-            --create \
-            --certificate-key /tmp/cert_key.pem
+            --create
           keychain initialize
           keychain add-certificates
       - name: Use profiles
