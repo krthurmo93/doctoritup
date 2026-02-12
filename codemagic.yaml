@@ -27,6 +27,21 @@ workflows:
       - name: Install CocoaPods
         script: |
           cd ios && pod install
+      - name: Bundle JavaScript with Expo
+        script: |
+          npx expo export:embed \
+            --platform ios \
+            --dev false \
+            --entry-file index.js \
+            --bundle-output ios/DoctorItUp/main.jsbundle \
+            --assets-dest ios/DoctorItUp
+          
+          echo "Bundle created:"
+          ls -la ios/DoctorItUp/main.jsbundle
+      - name: Skip Xcode bundling
+        script: |
+          echo "export SKIP_BUNDLING=1" > ios/.xcode.env.local
+          cat ios/.xcode.env.local
       - name: Set up code signing
         script: |
           app-store-connect fetch-signing-files "Com.owlkimmy.doctoritup" \
@@ -37,17 +52,6 @@ workflows:
       - name: Use profiles
         script: |
           xcode-project use-profiles
-      - name: Configure Xcode environment
-        script: |
-          NODE_REAL_PATH=$(python3 -c "import os; print(os.path.realpath('$(which node)'))")
-          CLI_RESOLVED=$($NODE_REAL_PATH --print "require.resolve('@expo/cli')")
-          echo "Node at: $NODE_REAL_PATH"
-          echo "CLI at: $CLI_RESOLVED"
-          echo "export NODE_BINARY=$NODE_REAL_PATH" > ios/.xcode.env.local
-          echo "export ENTRY_FILE=index.js" >> ios/.xcode.env.local
-          echo "export BUNDLE_COMMAND=export:embed" >> ios/.xcode.env.local
-          echo "export CLI_PATH=$CLI_RESOLVED" >> ios/.xcode.env.local
-          cat ios/.xcode.env.local
       - name: Build iOS
         script: |
           WORKSPACE=$(find ios -name "*.xcworkspace" -maxdepth 1 | head -1)
