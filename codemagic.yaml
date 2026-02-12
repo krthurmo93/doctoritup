@@ -36,13 +36,14 @@ workflows:
           xcode-project use-profiles
       - name: Build iOS
         script: |
-          echo "export NODE_BINARY=$(which node)" > ios/.xcode.env.local
+          NODE_PATH=$(which node)
+          echo "Node found at: $NODE_PATH"
+          echo "export NODE_BINARY=$NODE_PATH" > ios/.xcode.env.local
           echo "export FORCE_BUNDLING=1" >> ios/.xcode.env.local
-          echo "export CI=1" >> ios/.xcode.env.local
           cat ios/.xcode.env.local
           
-          # Create symlink so node is findable by Xcode
-          ln -sf $(which node) /usr/local/bin/node || true
+          # Copy node binary to /usr/local/bin so Xcode scripts can find it
+          cp "$NODE_PATH" /usr/local/bin/node 2>/dev/null || true
           
           WORKSPACE=$(find ios -name "*.xcworkspace" -maxdepth 1 | head -1)
           SCHEME=$(basename "$WORKSPACE" .xcworkspace)
