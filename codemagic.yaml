@@ -11,7 +11,7 @@ workflows:
       vars:
         EXPO_PUBLIC_DOMAIN: "doctoritup"
         NODE_OPTIONS: "--max-old-space-size=4096"
-      node: v18
+      node: v20
       xcode: 16.2
       cocoapods: default
     scripts:
@@ -33,11 +33,11 @@ workflows:
             --platform ios \
             --dev false \
             --entry-file index.js \
-            --bundle-output ios/DoctorItUp/main.jsbundle \
-            --assets-dest ios/DoctorItUp
+            --bundle-output ios/main.jsbundle \
+            --assets-dest ios
           
           echo "Bundle created:"
-          ls -la ios/DoctorItUp/main.jsbundle
+          ls -la ios/main.jsbundle
       - name: Skip Xcode bundling
         script: |
           echo "export SKIP_BUNDLING=1" > ios/.xcode.env.local
