@@ -36,6 +36,11 @@ workflows:
       - name: Use profiles
         script: |
           xcode-project use-profiles
+      - name: Set up Node path for Xcode
+        script: |
+          echo "export NODE_BINARY=$(which node)" >> ios/.xcode.env.local
+          echo "export CI=1" >> ios/.xcode.env.local
+          cat ios/.xcode.env.local
       - name: Build iOS
         script: |
           WORKSPACE=$(find ios -name "*.xcworkspace" -maxdepth 1 | head -1)
