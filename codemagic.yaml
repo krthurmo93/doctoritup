@@ -8,12 +8,8 @@ workflows:
     environment:
       groups:
         - appstore
-      ios_signing:
-        distribution_type: app_store
-        bundle_identifier: Com.owlkimmy.doctoritup
       vars:
         EXPO_PUBLIC_DOMAIN: "doctoritup"
-        XCODE_SCHEME: "DoctorItUp"
         NODE_OPTIONS: "--max-old-space-size=4096"
       node: v18
       xcode: 16.2
@@ -41,12 +37,22 @@ workflows:
             --assets-dest ios
       - name: Set up code signing
         script: |
-          xcode-project use-profiles --warn-only
+          app-store-connect fetch-signing-files "Com.owlkimmy.doctoritup" \
+            --type IOS_APP_STORE \
+            --create
+          keychain initialize
+          keychain add-certificates
+      - name: Use profiles
+        script: |
+          xcode-project use-profiles
       - name: Build iOS
         script: |
+          WORKSPACE=$(find ios -name "*.xcworkspace" -maxdepth 1 | head -1)
+          SCHEME=$(basename "$WORKSPACE" .xcworkspace)
+          echo "Using workspace: $WORKSPACE, scheme: $SCHEME"
           xcode-project build-ipa \
-            --workspace "ios/$XCODE_SCHEME.xcworkspace" \
-            --scheme "$XCODE_SCHEME"
+            --workspace "$WORKSPACE" \
+            --scheme "$SCHEME"
     artifacts:
       - build/ios/ipa/*.ipa
       - /tmp/xcodebuild_logs/*.log
