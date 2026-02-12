@@ -27,28 +27,12 @@ workflows:
       - name: Install CocoaPods
         script: |
           cd ios && pod install
-      - name: Bundle JavaScript with Expo
+      - name: Fix Node path for Xcode
         script: |
-          set -e
-          
-          APP_DIR=$(find ios -name "*.xcodeproj" -maxdepth 1 | head -1 | sed 's/.xcodeproj//')
-          echo "App directory: $APP_DIR"
-          
-          mkdir -p "$APP_DIR"
-          
-          npx expo export:embed \
-            --platform ios \
-            --dev false \
-            --entry-file index.js \
-            --bundle-output "$APP_DIR/main.jsbundle" \
-            --assets-dest "$APP_DIR"
-          
-          echo "Bundle created:"
-          ls -la "$APP_DIR/main.jsbundle"
-          echo "Bundle size: $(wc -c < "$APP_DIR/main.jsbundle") bytes"
-      - name: Skip Xcode bundling
-        script: |
-          echo 'export SKIP_BUNDLING=1' >> ios/.xcode.env.local
+          NODE_PATH=$(which node)
+          echo "Node path: $NODE_PATH"
+          echo "Node version: $(node --version)"
+          echo "export NODE_BINARY=$NODE_PATH" > ios/.xcode.env.local
           cat ios/.xcode.env.local
       - name: Set up code signing
         script: |
