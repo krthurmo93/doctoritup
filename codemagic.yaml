@@ -23,6 +23,7 @@ workflows:
       - name: Prebuild iOS
         script: |
           npx expo prebuild --platform ios --clean
+          cd ios && pod install && cd ..
       - name: Set up code signing
         script: |
           openssl req -nodes -newkey rsa:2048 -keyout /tmp/cert_key.pem -out /tmp/cert_csr.pem -subj "/CN=Doctor It Up/O=Kimberly Thurmond/C=US"
@@ -37,9 +38,12 @@ workflows:
           xcode-project use-profiles
       - name: Build iOS
         script: |
+          WORKSPACE=$(find ios -name "*.xcworkspace" -maxdepth 1 | head -1)
+          SCHEME=$(basename "$WORKSPACE" .xcworkspace)
+          echo "Using workspace: $WORKSPACE, scheme: $SCHEME"
           xcode-project build-ipa \
-            --workspace "ios/doctoritup.xcworkspace" \
-            --scheme "doctoritup"
+            --workspace "$WORKSPACE" \
+            --scheme "$SCHEME"
     artifacts:
       - build/ios/ipa/*.ipa
       - /tmp/xcodebuild_logs/*.log
