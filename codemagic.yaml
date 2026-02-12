@@ -8,8 +8,13 @@ workflows:
     environment:
       groups:
         - appstore
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: Com.owlkimmy.doctoritup
       vars:
         EXPO_PUBLIC_DOMAIN: "doctoritup"
+        XCODE_SCHEME: "DoctorItUp"
+        NODE_OPTIONS: "--max-old-space-size=4096"
       node: v18
       xcode: 16.2
       cocoapods: default
@@ -23,34 +28,25 @@ workflows:
       - name: Prebuild iOS
         script: |
           npx expo prebuild --platform ios --clean
-          cd ios && pod install && cd ..
+      - name: Install CocoaPods
+        script: |
+          cd ios && pod install
+      - name: Pre-bundle JavaScript
+        script: |
+          npx react-native bundle \
+            --platform ios \
+            --dev false \
+            --entry-file node_modules/expo-router/entry.js \
+            --bundle-output ios/main.jsbundle \
+            --assets-dest ios
       - name: Set up code signing
         script: |
-          app-store-connect fetch-signing-files "Com.owlkimmy.doctoritup" \
-            --type IOS_APP_STORE \
-            --create
-          keychain initialize
-          keychain add-certificates
-      - name: Use profiles
-        script: |
-          xcode-project use-profiles
+          xcode-project use-profiles --warn-only
       - name: Build iOS
         script: |
-          NODE_PATH=$(which node)
-          echo "Node found at: $NODE_PATH"
-          echo "export NODE_BINARY=$NODE_PATH" > ios/.xcode.env.local
-          echo "export FORCE_BUNDLING=1" >> ios/.xcode.env.local
-          cat ios/.xcode.env.local
-          
-          # Copy node binary to /usr/local/bin so Xcode scripts can find it
-          cp "$NODE_PATH" /usr/local/bin/node 2>/dev/null || true
-          
-          WORKSPACE=$(find ios -name "*.xcworkspace" -maxdepth 1 | head -1)
-          SCHEME=$(basename "$WORKSPACE" .xcworkspace)
-          echo "Using workspace: $WORKSPACE, scheme: $SCHEME"
           xcode-project build-ipa \
-            --workspace "$WORKSPACE" \
-            --scheme "$SCHEME"
+            --workspace "ios/$XCODE_SCHEME.xcworkspace" \
+            --scheme "$XCODE_SCHEME"
     artifacts:
       - build/ios/ipa/*.ipa
       - /tmp/xcodebuild_logs/*.log
